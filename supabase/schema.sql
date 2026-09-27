@@ -112,6 +112,27 @@ alter table public.club_members add column if not exists valide boolean not null
 
 alter table public.club_members enable row level security;
 
+-- "Le bureau voit/gere tous les membres de son club" a besoin de verifier, DANS une policy sur
+-- club_members, si l'appelant est bureau -- en interrogeant club_members lui-meme. Une sous-requete
+-- directe declenche une recursion infinie (Postgres reapplique la policy a chaque ligne testee,
+-- qui reteste la policy, etc. -- erreur reelle rencontree : "infinite recursion detected in
+-- policy for relation club_members"). SECURITY DEFINER contourne le probleme : la fonction
+-- s'execute avec les droits de son proprietaire (qui bypasse RLS), donc plus de recursion.
+create or replace function public.is_club_bureau(target_club_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.club_members
+    where club_id = target_club_id and user_id = auth.uid() and role_membre_bureau = true
+  );
+$$;
+
+grant execute on function public.is_club_bureau(uuid) to authenticated;
+
 -- Un membre du bureau doit pouvoir voir tous les membres de son club (pas seulement lui-meme)
 -- pour les ecrans de l'onglet Gestion club (liste des membres, validation, roles).
 drop policy if exists "Les utilisateurs lisent leurs propres appartenances" on public.club_members;
@@ -121,12 +142,7 @@ create policy "Les membres du bureau lisent tous les membres de leur club"
   to authenticated
   using (
     auth.uid() = user_id
-    or exists (
-      select 1 from public.club_members bureau
-      where bureau.club_id = club_members.club_id
-        and bureau.user_id = auth.uid()
-        and bureau.role_membre_bureau = true
-    )
+    or public.is_club_bureau(club_id)
   );
 
 drop policy if exists "Les utilisateurs rejoignent un club en leur nom" on public.club_members;
@@ -141,18 +157,8 @@ drop policy if exists "Les membres du bureau modifient les membres de leur club"
 create policy "Les membres du bureau modifient les membres de leur club"
   on public.club_members for update
   to authenticated
-  using (exists (
-    select 1 from public.club_members bureau
-    where bureau.club_id = club_members.club_id
-      and bureau.user_id = auth.uid()
-      and bureau.role_membre_bureau = true
-  ))
-  with check (exists (
-    select 1 from public.club_members bureau
-    where bureau.club_id = club_members.club_id
-      and bureau.user_id = auth.uid()
-      and bureau.role_membre_bureau = true
-  ));
+  using (public.is_club_bureau(club_id))
+  with check (public.is_club_bureau(club_id));
 
 drop policy if exists "Les utilisateurs quittent un club en leur nom" on public.club_members;
 create policy "Les utilisateurs quittent un club en leur nom"
