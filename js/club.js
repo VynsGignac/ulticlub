@@ -91,13 +91,15 @@ async function joinClub(clubId) {
   // 23505 = deja membre de ce club (contrainte unique user_id+club_id) : pas grave, on bascule
   // simplement dessus.
   if (memberError && memberError.code !== '23505') {
-    setMessage(errorEl, 'Impossible de rejoindre ce club, réessaie.', true);
+    console.error('joinClub: echec insertion club_members', memberError);
+    setMessage(errorEl, `Impossible de rejoindre ce club, réessaie. (${memberError.message || memberError.code})`, true);
     return;
   }
 
   const { error: profileError } = await client.from('profiles').update({ active_club_id: clubId }).eq('id', user.id);
   if (profileError) {
-    setMessage(errorEl, 'Impossible de rejoindre ce club, réessaie.', true);
+    console.error('joinClub: echec mise a jour active_club_id', profileError);
+    setMessage(errorEl, `Impossible de rejoindre ce club, réessaie. (${profileError.message || profileError.code})`, true);
     return;
   }
 
@@ -134,13 +136,15 @@ async function handleClubCreate(event) {
       .from('club_members')
       .insert({ user_id: user.id, club_id: club.id, role_encadrant: true, role_membre_bureau: true, valide: true });
     if (memberError) {
-      setMessage(errorEl, 'Club créé, mais impossible de te rattacher au club.', true);
+      console.error('handleClubCreate: echec insertion club_members', memberError);
+      setMessage(errorEl, `Club créé, mais impossible de te rattacher au club. (${memberError.message || memberError.code})`, true);
       return;
     }
 
     const { error: profileError } = await client.from('profiles').update({ active_club_id: club.id }).eq('id', user.id);
     if (profileError) {
-      setMessage(errorEl, 'Club créé, mais impossible de l’activer.', true);
+      console.error('handleClubCreate: echec mise a jour active_club_id', profileError);
+      setMessage(errorEl, `Club créé, mais impossible de l’activer. (${profileError.message || profileError.code})`, true);
       return;
     }
 
