@@ -146,16 +146,65 @@ alter table public.profiles drop column if exists role_encadrant;
 alter table public.profiles drop column if exists role_membre_bureau;
 
 -- --- Equipes (onglet Gestion equipe, reserve aux encadrants) ---
--- Une equipe appartient a un seul club. Son nom est unique dans ce club (mais deux clubs peuvent
--- chacun avoir une equipe "Seniors"), insensible a la casse.
+-- Une equipe appartient a un seul club et se definit par 4 champs obligatoires (categorie,
+-- section, division, surface) ; son nom est derive automatiquement de ces champs ("Section
+-- Categorie Division Surface", ex. "Adulte Open D1 Outdoor") et unique dans son club, insensible
+-- a la casse (mais deux clubs peuvent chacun avoir une equipe portant le meme nom).
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.clubs (id) on delete cascade,
-  nom text not null,
+  categorie text not null,
+  section text not null,
+  division text not null,
+  surface text not null,
+  nom text generated always as (section || ' ' || categorie || ' ' || division || ' ' || surface) stored,
   created_by uuid not null references auth.users (id),
   created_at timestamptz not null default now()
 );
+
+-- Migration pour un projet ayant deja la table teams sous son ancienne forme (nom en texte
+-- libre) : ajoute les 4 champs structures, les remplit avec des valeurs de repli pour les lignes
+-- existantes (aucune ne devrait exister a ce stade), puis derive nom automatiquement a partir
+-- d'eux -- sans effet si deja fait.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'teams' and column_name = 'categorie'
+  ) then
+    alter table public.teams add column categorie text;
+    alter table public.teams add column section text;
+    alter table public.teams add column division text;
+    alter table public.teams add column surface text;
+
+    update public.teams set
+      categorie = coalesce(categorie, 'Open'),
+      section = coalesce(section, 'Adulte'),
+      division = coalesce(division, coalesce(nom, '?')),
+      surface = coalesce(surface, 'Outdoor');
+
+    alter table public.teams alter column categorie set not null;
+    alter table public.teams alter column section set not null;
+    alter table public.teams alter column division set not null;
+    alter table public.teams alter column surface set not null;
+
+    drop index if exists teams_nom_unique_ci;
+    alter table public.teams drop column nom;
+    alter table public.teams add column nom text generated always as (
+      section || ' ' || categorie || ' ' || division || ' ' || surface
+    ) stored;
+  end if;
+end $$;
+
+alter table public.teams drop constraint if exists teams_categorie_check;
+alter table public.teams add constraint teams_categorie_check check (categorie in ('Open', 'Féminin', 'Mixte'));
+
+alter table public.teams drop constraint if exists teams_section_check;
+alter table public.teams add constraint teams_section_check check (section in ('Junior', 'Adulte', 'Master'));
+
+alter table public.teams drop constraint if exists teams_surface_check;
+alter table public.teams add constraint teams_surface_check check (surface in ('Outdoor', 'Indoor', 'Beach'));
 
 create unique index if not exists teams_nom_unique_ci on public.teams (club_id, lower(nom));
 

@@ -275,7 +275,7 @@
     gap: 4px;
   }
 
-  input:not([type="checkbox"]) {
+  input:not([type="checkbox"]), select {
     font-size: 1em;
     padding: 10px 12px;
     border-radius: 8px;
@@ -285,7 +285,7 @@
     box-sizing: border-box;
     touch-action: manipulation;
   }
-  input:not([type="checkbox"]):focus { outline: 2px solid #3b82f6; }
+  input:not([type="checkbox"]):focus, select:focus { outline: 2px solid #3b82f6; }
   input:not([type="checkbox"]):disabled { opacity: 0.6; }
 
   .checkbox-label {
@@ -470,9 +470,37 @@
       <div id="subtab-creation-equipe" class="subtab-panel" style="display: none;">
         <form id="equipe-create-form" class="panel">
           <label>
-            Nom de l'équipe
-            <input id="equipe-create-nom" type="text" required>
+            Catégorie
+            <select id="equipe-categorie" required>
+              <option value="" disabled selected>Choisir...</option>
+              <option value="Open">Open</option>
+              <option value="Féminin">Féminin</option>
+              <option value="Mixte">Mixte</option>
+            </select>
           </label>
+          <label>
+            Section
+            <select id="equipe-section" required>
+              <option value="" disabled selected>Choisir...</option>
+              <option value="Junior">Junior</option>
+              <option value="Adulte">Adulte</option>
+              <option value="Master">Master</option>
+            </select>
+          </label>
+          <label>
+            Division
+            <input id="equipe-division" type="text" required>
+          </label>
+          <label>
+            Surface
+            <select id="equipe-surface" required>
+              <option value="" disabled selected>Choisir...</option>
+              <option value="Outdoor">Outdoor</option>
+              <option value="Indoor">Indoor</option>
+              <option value="Beach">Beach</option>
+            </select>
+          </label>
+          <p id="equipe-create-preview" class="message"></p>
           <p id="equipe-create-error" class="message error"></p>
           <button type="submit">Créer</button>
         </form>

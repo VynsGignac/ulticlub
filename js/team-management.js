@@ -21,7 +21,20 @@ function selectEquipeSubTab(subTabId) {
   } else {
     document.getElementById('equipe-create-form').reset();
     setMessage(document.getElementById('equipe-create-error'), '');
+    setMessage(document.getElementById('equipe-create-preview'), '');
   }
+}
+
+function updateEquipePreview() {
+  const categorie = document.getElementById('equipe-categorie').value;
+  const section = document.getElementById('equipe-section').value;
+  const division = document.getElementById('equipe-division').value.trim();
+  const surface = document.getElementById('equipe-surface').value;
+  const previewEl = document.getElementById('equipe-create-preview');
+
+  setMessage(previewEl, categorie && section && division && surface
+    ? `Nom de l'équipe : ${section} ${categorie} ${division} ${surface}`
+    : '');
 }
 
 async function renderEquipesActuelles() {
@@ -64,7 +77,10 @@ async function renderEquipesActuelles() {
 async function handleEquipeCreate(event) {
   event.preventDefault();
   const submitButton = event.submitter;
-  const nom = document.getElementById('equipe-create-nom').value.trim();
+  const categorie = document.getElementById('equipe-categorie').value;
+  const section = document.getElementById('equipe-section').value;
+  const division = document.getElementById('equipe-division').value.trim();
+  const surface = document.getElementById('equipe-surface').value;
   const errorEl = document.getElementById('equipe-create-error');
   setMessage(errorEl, '');
   submitButton.disabled = true;
@@ -77,9 +93,11 @@ async function handleEquipeCreate(event) {
       return;
     }
 
+    // "nom" n'est pas envoye : c'est une colonne generee cote base a partir des 4 champs
+    // ci-dessous (section categorie division surface), voir supabase/schema.sql.
     const { data: team, error: createError } = await client
       .from('teams')
-      .insert({ nom, club_id: profile.active_club_id, created_by: user.id })
+      .insert({ categorie, section, division, surface, club_id: profile.active_club_id, created_by: user.id })
       .select('id')
       .single();
 
@@ -100,6 +118,7 @@ async function handleEquipeCreate(event) {
     }
 
     document.getElementById('equipe-create-form').reset();
+    setMessage(document.getElementById('equipe-create-preview'), '');
     selectEquipeSubTab('equipes-actuelles');
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
@@ -113,4 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', () => selectEquipeSubTab(button.dataset.subtab));
   });
   document.getElementById('equipe-create-form').addEventListener('submit', handleEquipeCreate);
+
+  ['equipe-categorie', 'equipe-section', 'equipe-division', 'equipe-surface'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', updateEquipePreview);
+    el.addEventListener('change', updateEquipePreview);
+  });
 });
