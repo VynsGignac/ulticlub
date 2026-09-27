@@ -506,3 +506,38 @@ create policy "Le bureau cree un evenement de club"
       where cm.club_id = club_events.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
     )
   );
+
+-- --- Communications de club (onglet Gestion club, reserve au bureau) --
+-- Un message publie par un membre du bureau, visible par tous les membres du bureau du club
+-- (pas par les autres membres) -- l'usage/emplacement d'affichage futur reste a definir.
+
+create table if not exists public.club_communications (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  message text not null,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.club_communications enable row level security;
+
+drop policy if exists "Le bureau lit les communications de son club" on public.club_communications;
+create policy "Le bureau lit les communications de son club"
+  on public.club_communications for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_communications.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+  ));
+
+drop policy if exists "Le bureau cree une communication de club" on public.club_communications;
+create policy "Le bureau cree une communication de club"
+  on public.club_communications for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.club_members cm
+      where cm.club_id = club_communications.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+    )
+  );

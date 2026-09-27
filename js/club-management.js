@@ -11,6 +11,9 @@
 //   calendrier de tout le club au lieu d'une seule equipe.
 // - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
 //   en bas de l'ecran valide toutes les modifications en une fois.
+// - Communication : liste les publications du bureau (plus recente d'abord), cliquer sur l'une
+//   d'elles l'ouvre. "Nouvelle communication" permet d'en ecrire une, visible par tout le bureau
+//   du club une fois publiee (emplacement d'affichage futur pas encore defini).
 // Pas d'equivalent a "Gerer les selections" : ca n'a pas de sens a l'echelle du club entier.
 // ============================================================
 
@@ -210,6 +213,149 @@ async function saveClubDebts() {
   setTimeout(() => { saveButton.textContent = 'Valider'; }, 1500);
 }
 
+async function renderClubCommunications() {
+  hideClubDebtSaveButton();
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: communications } = await client
+    .from('club_communications')
+    .select('id, message, created_by, created_at')
+    .eq('club_id', currentGestionClubId)
+    .order('created_at', { ascending: false });
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+
+  const newButton = document.createElement('button');
+  newButton.type = 'button';
+  newButton.className = 'action-button';
+  newButton.textContent = 'Nouvelle communication';
+  newButton.addEventListener('click', renderNewCommunicationForm);
+  wrapper.appendChild(newButton);
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+
+  if (!communications || !communications.length) {
+    listEl.innerHTML = '<li class="empty">Aucune communication pour l’instant.</li>';
+  } else {
+    const authorIds = [...new Set(communications.map((c) => c.created_by))];
+    const pseudoById = await fetchPseudosByIdForClub(authorIds);
+
+    for (const comm of communications) {
+      const li = document.createElement('li');
+      const preview = comm.message.length > 60 ? `${comm.message.slice(0, 60)}…` : comm.message;
+      const date = new Date(comm.created_at).toLocaleDateString('fr-FR');
+      li.textContent = `${date} — ${preview}`;
+      li.addEventListener('click', () => renderCommunicationDetail(comm, pseudoById.get(comm.created_by)));
+      listEl.appendChild(li);
+    }
+  }
+
+  wrapper.appendChild(listEl);
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
+function renderCommunicationDetail(comm, authorPseudo) {
+  const contentEl = document.getElementById('club-detail-content');
+  const date = new Date(comm.created_at).toLocaleString('fr-FR');
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+
+  const meta = document.createElement('p');
+  meta.className = 'communication-meta';
+  meta.textContent = `${authorPseudo || 'Inconnu'} — ${date}`;
+
+  const body = document.createElement('p');
+  body.className = 'communication-body';
+  body.textContent = comm.message;
+
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = 'Retour';
+  backButton.addEventListener('click', renderClubCommunications);
+
+  wrapper.appendChild(meta);
+  wrapper.appendChild(body);
+  wrapper.appendChild(backButton);
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
+function renderNewCommunicationForm() {
+  const contentEl = document.getElementById('club-detail-content');
+
+  const form = document.createElement('form');
+  form.className = 'panel';
+
+  const label = document.createElement('label');
+  label.textContent = 'Message';
+  const textarea = document.createElement('textarea');
+  textarea.id = 'communication-message';
+  textarea.rows = 5;
+  textarea.required = true;
+  label.appendChild(textarea);
+
+  const errorEl = document.createElement('p');
+  errorEl.id = 'communication-create-error';
+  errorEl.className = 'message error';
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.textContent = 'Publier';
+
+  const cancelButton = document.createElement('button');
+  cancelButton.type = 'button';
+  cancelButton.className = 'link';
+  cancelButton.textContent = 'Annuler';
+  cancelButton.addEventListener('click', renderClubCommunications);
+
+  form.appendChild(label);
+  form.appendChild(errorEl);
+  form.appendChild(submitButton);
+  form.appendChild(cancelButton);
+  form.addEventListener('submit', handleCommunicationCreate);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(form);
+}
+
+async function handleCommunicationCreate(event) {
+  event.preventDefault();
+  const submitButton = event.submitter;
+  const errorEl = document.getElementById('communication-create-error');
+  const message = document.getElementById('communication-message').value.trim();
+  setMessage(errorEl, '');
+
+  if (!message) {
+    setMessage(errorEl, 'Le message ne peut pas être vide.', true);
+    return;
+  }
+
+  submitButton.disabled = true;
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    const { error } = await client
+      .from('club_communications')
+      .insert({ club_id: currentGestionClubId, message, created_by: user.id });
+
+    if (error) {
+      setMessage(errorEl, 'Erreur lors de la publication.', true);
+      return;
+    }
+
+    await renderClubCommunications();
+  } catch {
+    setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-members').addEventListener('click', renderClubMembersList);
   document.getElementById('club-action-validate-members').addEventListener('click', renderValidateMembers);
@@ -218,4 +364,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);
   document.getElementById('club-action-manage-debt').addEventListener('click', renderClubManageDebt);
   document.getElementById('club-debt-save-button').addEventListener('click', saveClubDebts);
+  document.getElementById('club-action-communication').addEventListener('click', renderClubCommunications);
 });
