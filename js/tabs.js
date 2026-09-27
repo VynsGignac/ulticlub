@@ -13,7 +13,7 @@ const TABS = [
   { id: 'vie-club', label: 'Vie de club' },
   { id: 'gestion-equipe', label: 'Gestion équipe', requires: 'encadrant' },
   { id: 'gestion-club', label: 'Gestion club', requires: 'membreBureau' },
-  { id: 'profil', label: 'Profil' },
+  { id: 'profil', label: 'Tableau de bord' },
 ];
 
 const CUSTOM_TAB_CONTAINERS = {

@@ -99,6 +99,11 @@ create table if not exists public.club_members (
   unique (user_id, club_id)
 );
 
+-- Statut administratif (onglet Tableau de bord > Administratif, lecture seule pour le membre) :
+-- saisi par le bureau -- pas encore d'ecran pour le faire, seulement l'affichage pour l'instant.
+alter table public.club_members add column if not exists licence_a_jour boolean not null default false;
+alter table public.club_members add column if not exists dette numeric(10, 2) not null default 0;
+
 alter table public.club_members enable row level security;
 
 drop policy if exists "Les utilisateurs lisent leurs propres appartenances" on public.club_members;

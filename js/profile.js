@@ -1,10 +1,30 @@
 // ============================================================
-// Onglet Profil : edition des informations personnelles, et gestion de l'appartenance aux clubs
-// (recherche/creation dans js/club.js ; ici, un utilisateur voit tous ses clubs, peut quitter le
-// club actif ou basculer vers un autre parmi ceux qu'il a deja rejoints).
+// Onglet Tableau de bord : sous-onglet Profil (edition des informations personnelles, et gestion
+// de l'appartenance aux clubs -- recherche/creation dans js/club.js, ici un utilisateur voit tous
+// ses clubs, peut quitter le club actif ou basculer vers un autre parmi ceux qu'il a deja
+// rejoints) et sous-onglet Administratif (licence/dette, lecture seule -- rempli par le bureau
+// ailleurs, pas encore implemente).
 // ============================================================
 
-async function renderProfilTab() {
+function renderProfilTab() {
+  selectDashboardSubTab('profil');
+}
+
+function selectDashboardSubTab(subTabId) {
+  document.querySelectorAll('#tab-content-profil .subtab-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.subtab === subTabId);
+  });
+  document.getElementById('dashboard-subtab-profil').style.display = subTabId === 'profil' ? '' : 'none';
+  document.getElementById('dashboard-subtab-administratif').style.display = subTabId === 'administratif' ? '' : 'none';
+
+  if (subTabId === 'profil') {
+    renderProfilSubTab();
+  } else {
+    renderAdministratifSubTab();
+  }
+}
+
+async function renderProfilSubTab() {
   const { data: { user } } = await client.auth.getUser();
 
   const { data: profile } = await client
@@ -101,6 +121,32 @@ function renderClubMemberships(profile, memberships) {
   }
 }
 
+// Lecture seule : la licence et la dette d'un membre sont saisies par le bureau (pas encore
+// implemente), pas modifiables ici. Propres au club actif (deux clubs = deux statuts distincts).
+async function renderAdministratifSubTab() {
+  const licenceCheckbox = document.getElementById('dashboard-licence-a-jour');
+  const detteInput = document.getElementById('dashboard-dette');
+
+  const { data: { user } } = await client.auth.getUser();
+  const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
+
+  if (!profile || !profile.active_club_id) {
+    licenceCheckbox.checked = false;
+    detteInput.value = '';
+    return;
+  }
+
+  const { data: membership } = await client
+    .from('club_members')
+    .select('licence_a_jour, dette')
+    .eq('user_id', user.id)
+    .eq('club_id', profile.active_club_id)
+    .single();
+
+  licenceCheckbox.checked = !!(membership && membership.licence_a_jour);
+  detteInput.value = membership ? `${Number(membership.dette).toFixed(2)} €` : '';
+}
+
 async function leaveActiveClub(clubId, clubNom) {
   if (!confirm(`Quitter ${clubNom} ?`)) return;
 
@@ -165,4 +211,8 @@ async function handleProfilSave(event) {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('profil-form').addEventListener('submit', handleProfilSave);
+
+  document.querySelectorAll('#tab-content-profil .subtab-button').forEach((button) => {
+    button.addEventListener('click', () => selectDashboardSubTab(button.dataset.subtab));
+  });
 });

@@ -104,6 +104,13 @@
     align-items: center;
     gap: 28px;
   }
+  .dashboard-subtab-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
   .profil-clubs h2 { margin-bottom: 4px; }
   .club-results li.highlight {
     border-color: #3b82f6;
@@ -634,6 +641,12 @@
     </div>
 
     <div id="tab-content-profil" class="tab-content-profil" style="display: none;">
+      <nav class="subtabs">
+        <button type="button" class="subtab-button" data-subtab="profil">Profil</button>
+        <button type="button" class="subtab-button" data-subtab="administratif">Administratif</button>
+      </nav>
+
+      <div id="dashboard-subtab-profil" class="dashboard-subtab-panel">
       <form id="profil-form" class="panel">
         <h2>Mes informations</h2>
         <label>
@@ -691,6 +704,21 @@
         <button type="button" id="profil-leave-club" class="link"></button>
         <button type="button" id="profil-switch-club" class="link">Basculer vers un autre club</button>
         <ul id="profil-switch-list" class="club-results" style="display: none;"></ul>
+      </div>
+      </div>
+
+      <div id="dashboard-subtab-administratif" class="dashboard-subtab-panel" style="display: none;">
+        <div class="panel">
+          <h2>Administratif</h2>
+          <label class="checkbox-label">
+            <input id="dashboard-licence-a-jour" type="checkbox" disabled>
+            Licence à jour
+          </label>
+          <label>
+            Dette
+            <input id="dashboard-dette" type="text" disabled>
+          </label>
+        </div>
       </div>
     </div>
   </div>
