@@ -144,3 +144,76 @@ end $$;
 alter table public.profiles add column if not exists active_club_id uuid references public.clubs (id);
 alter table public.profiles drop column if exists role_encadrant;
 alter table public.profiles drop column if exists role_membre_bureau;
+
+-- --- Equipes (onglet Gestion equipe, reserve aux encadrants) ---
+-- Une equipe appartient a un seul club. Son nom est unique dans ce club (mais deux clubs peuvent
+-- chacun avoir une equipe "Seniors"), insensible a la casse.
+
+create table if not exists public.teams (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  nom text not null,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists teams_nom_unique_ci on public.teams (club_id, lower(nom));
+
+alter table public.teams enable row level security;
+
+drop policy if exists "Les membres du club lisent les equipes de leur club" on public.teams;
+create policy "Les membres du club lisent les equipes de leur club"
+  on public.teams for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = teams.club_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les encadrants creent une equipe dans leur club" on public.teams;
+create policy "Les encadrants creent une equipe dans leur club"
+  on public.teams for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.club_members cm
+      where cm.club_id = teams.club_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    )
+  );
+
+-- Responsables d'une equipe (plusieurs possibles). Le createur d'une equipe en devient
+-- responsable automatiquement (voir js/team-management.js).
+
+create table if not exists public.team_managers (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (team_id, user_id)
+);
+
+alter table public.team_managers enable row level security;
+
+drop policy if exists "Les membres du club lisent les responsables d'equipe" on public.team_managers;
+create policy "Les membres du club lisent les responsables d'equipe"
+  on public.team_managers for select
+  to authenticated
+  using (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_managers.team_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Un encadrant s'ajoute comme responsable d'equipe" on public.team_managers;
+create policy "Un encadrant s'ajoute comme responsable d'equipe"
+  on public.team_managers for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.teams t
+      join public.club_members cm on cm.club_id = t.club_id
+      where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    )
+  );

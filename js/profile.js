@@ -58,7 +58,7 @@ function renderClubMemberships(profile, memberships) {
       const li = document.createElement('li');
       const isActive = membership.club_id === activeClubId;
       li.textContent = membership.clubs.nom + (isActive ? ' (actuel)' : '');
-      li.classList.toggle('active-club', isActive);
+      li.classList.toggle('highlight', isActive);
       listEl.appendChild(li);
     }
   }

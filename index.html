@@ -105,9 +105,46 @@
     gap: 28px;
   }
   .profil-clubs h2 { margin-bottom: 4px; }
-  .profil-clubs .club-results li.active-club {
+  .club-results li.highlight {
     border-color: #3b82f6;
     color: #e8edf2;
+  }
+
+  .tab-content-gestion-equipe {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .subtabs {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+    border-bottom: 1px solid #1f2731;
+  }
+  .subtab-button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    color: #8a97a4;
+    padding: 10px 8px;
+    font-size: 0.9em;
+  }
+  .subtab-button.active {
+    color: #e8edf2;
+    border-bottom-color: #3b82f6;
+    font-weight: 600;
+  }
+  .subtab-panel {
+    width: 100%;
+    max-width: 360px;
   }
 
   .tab-content-calendrier {
@@ -420,6 +457,28 @@
       <div id="calendrier-grid" class="calendrier-grid"></div>
     </div>
 
+    <div id="tab-content-gestion-equipe" class="tab-content-gestion-equipe" style="display: none;">
+      <nav class="subtabs">
+        <button type="button" class="subtab-button" data-subtab="equipes-actuelles">Équipes actuelles</button>
+        <button type="button" class="subtab-button" data-subtab="creation-equipe">Création d'équipe</button>
+      </nav>
+
+      <div id="subtab-equipes-actuelles" class="subtab-panel">
+        <ul id="equipes-list" class="club-results"></ul>
+      </div>
+
+      <div id="subtab-creation-equipe" class="subtab-panel" style="display: none;">
+        <form id="equipe-create-form" class="panel">
+          <label>
+            Nom de l'équipe
+            <input id="equipe-create-nom" type="text" required>
+          </label>
+          <p id="equipe-create-error" class="message error"></p>
+          <button type="submit">Créer</button>
+        </form>
+      </div>
+    </div>
+
     <div id="tab-content-profil" class="tab-content-profil" style="display: none;">
       <form id="profil-form" class="panel">
         <h2>Mes informations</h2>
@@ -491,6 +550,7 @@
   <script src="js/club.js"></script>
   <script src="js/profile.js"></script>
   <script src="js/calendar.js"></script>
+  <script src="js/team-management.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 
