@@ -9,11 +9,17 @@
 // - Ajouter membre du bureau : bascule le role membre du bureau parmi les membres du club.
 // - Creer un evenement : ouvre un onglet dedie (voir js/club-event-create.js), visible dans le
 //   calendrier de tout le club au lieu d'une seule equipe.
+// - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
+//   en bas de l'ecran valide toutes les modifications en une fois.
 // Pas d'equivalent a "Gerer les selections" : ca n'a pas de sens a l'echelle du club entier.
 // ============================================================
 
 let currentGestionClubId = null;
 let currentGestionClubNom = '';
+
+function hideClubDebtSaveButton() {
+  document.getElementById('club-debt-save-button').style.display = 'none';
+}
 
 async function renderGestionClubTab() {
   const { data: { user } } = await client.auth.getUser();
@@ -24,6 +30,7 @@ async function renderGestionClubTab() {
 
   document.getElementById('club-detail-title').textContent = currentGestionClubNom;
   document.getElementById('club-detail-content').innerHTML = '';
+  hideClubDebtSaveButton();
 }
 
 async function fetchPseudosByIdForClub(userIds) {
@@ -33,6 +40,7 @@ async function fetchPseudosByIdForClub(userIds) {
 }
 
 async function renderClubMembersList() {
+  hideClubDebtSaveButton();
   const contentEl = document.getElementById('club-detail-content');
   contentEl.innerHTML = '<p class="message">Chargement...</p>';
 
@@ -71,6 +79,7 @@ async function validateMember(userId) {
 }
 
 async function renderValidateMembers() {
+  hideClubDebtSaveButton();
   const contentEl = document.getElementById('club-detail-content');
   contentEl.innerHTML = '<p class="message">Chargement...</p>';
 
@@ -105,6 +114,7 @@ async function toggleClubRole(userId, field, isCurrentlyOn, rerender) {
 }
 
 async function renderClubRoleToggle(field, tagLabel, rerender) {
+  hideClubDebtSaveButton();
   const contentEl = document.getElementById('club-detail-content');
   contentEl.innerHTML = '<p class="message">Chargement...</p>';
 
@@ -142,10 +152,70 @@ function renderAddBureauMembers() {
   renderClubRoleToggle('role_membre_bureau', 'bureau', renderAddBureauMembers);
 }
 
+async function renderClubManageDebt() {
+  hideClubDebtSaveButton();
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: members } = await client
+    .from('club_members')
+    .select('user_id, dette')
+    .eq('club_id', currentGestionClubId);
+
+  if (!members || !members.length) {
+    contentEl.innerHTML = '<p class="message">Aucun membre pour l’instant.</p>';
+    return;
+  }
+
+  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const member of members) {
+    const li = document.createElement('li');
+    li.className = 'debt-row';
+
+    const label = document.createElement('span');
+    label.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.step = '0.01';
+    input.value = Number(member.dette).toFixed(2);
+    input.dataset.userId = member.user_id;
+
+    li.appendChild(label);
+    li.appendChild(input);
+    listEl.appendChild(li);
+  }
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(listEl);
+  document.getElementById('club-debt-save-button').style.display = '';
+}
+
+async function saveClubDebts() {
+  const saveButton = document.getElementById('club-debt-save-button');
+  const inputs = document.querySelectorAll('#club-detail-content .debt-row input');
+  saveButton.disabled = true;
+
+  await Promise.all(Array.from(inputs).map((input) => client
+    .from('club_members')
+    .update({ dette: parseFloat(input.value) || 0 })
+    .eq('club_id', currentGestionClubId)
+    .eq('user_id', input.dataset.userId)));
+
+  saveButton.disabled = false;
+  saveButton.textContent = 'Enregistré ✓';
+  setTimeout(() => { saveButton.textContent = 'Valider'; }, 1500);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-members').addEventListener('click', renderClubMembersList);
   document.getElementById('club-action-validate-members').addEventListener('click', renderValidateMembers);
   document.getElementById('club-action-managers').addEventListener('click', renderManageClubEncadrants);
   document.getElementById('club-action-create-event').addEventListener('click', openClubEventCreate);
   document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);
+  document.getElementById('club-action-manage-debt').addEventListener('click', renderClubManageDebt);
+  document.getElementById('club-debt-save-button').addEventListener('click', saveClubDebts);
 });

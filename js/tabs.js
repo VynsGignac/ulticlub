@@ -37,6 +37,11 @@ function selectTab(tabId) {
     button.classList.toggle('active', button.dataset.tab === tabId);
   });
 
+  // Bouton flottant "Valider" de Gestion club > Gerer dette : ne doit survivre qu'a l'ecran qui
+  // l'affiche, pas aux autres onglets (il est en position fixed, donc invisible autrement pour le
+  // JS mais visible a l'ecran par-dessus tout le reste).
+  if (tabId !== 'gestion-club') hideClubDebtSaveButton();
+
   const custom = CUSTOM_TAB_CONTAINERS[tabId];
   document.getElementById('app-tab-content').style.display = custom ? 'none' : '';
   for (const key of Object.keys(CUSTOM_TAB_CONTAINERS)) {

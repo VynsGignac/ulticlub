@@ -5,4 +5,4 @@
 // build/publication ; les deux premiers (majeur.mineur) ne changent que sur demande explicite.
 // ============================================================
 
-const AppVersion = '0.1.033';
+const AppVersion = '0.1.035';
