@@ -1,0 +1,8 @@
+{
+  "appId": "com.ulticlub.app",
+  "appName": "UltiClub",
+  "webDir": "www",
+  "android": {
+    "webContentsDebuggingEnabled": true
+  }
+}
