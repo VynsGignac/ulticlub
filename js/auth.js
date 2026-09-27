@@ -18,13 +18,18 @@ function setMessage(el, message, isError) {
 }
 
 async function fetchOwnProfile(userId) {
-  const { data } = await client.from('profiles').select('pseudo, nom, club_id').eq('id', userId).single();
+  const { data } = await client
+    .from('profiles')
+    .select('pseudo, nom, club_id, role_encadrant, role_membre_bureau')
+    .eq('id', userId)
+    .single();
   return data;
 }
 
-function enterApp(pseudo, clubNom) {
+function enterApp(pseudo, clubNom, roles) {
   document.getElementById('app-pseudo').textContent = pseudo;
   document.getElementById('app-club').textContent = clubNom || '';
+  renderTabs(roles || { encadrant: false, membreBureau: false });
   showView('view-app');
 }
 

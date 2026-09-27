@@ -19,10 +19,14 @@ function showClubSelect(pseudo) {
 async function routeAfterLogin(userId, fallbackPseudo) {
   const profile = await fetchOwnProfile(userId);
   const pseudo = profile ? profile.pseudo : fallbackPseudo;
+  const roles = {
+    encadrant: !!(profile && profile.role_encadrant),
+    membreBureau: !!(profile && profile.role_membre_bureau),
+  };
 
   if (profile && profile.club_id) {
     const { data: club } = await client.from('clubs').select('nom').eq('id', profile.club_id).single();
-    enterApp(pseudo, club ? club.nom : '');
+    enterApp(pseudo, club ? club.nom : '', roles);
   } else {
     showClubSelect(pseudo);
   }
@@ -62,13 +66,17 @@ async function joinClub(clubId, clubNom) {
   setMessage(errorEl, '');
 
   const { data: { user } } = await client.auth.getUser();
-  const { error } = await client.from('profiles').update({ club_id: clubId }).eq('id', user.id);
+  // Remet les roles a zero : ils sont propres au club quitte/rejoint, pas transferables entre clubs.
+  const { error } = await client
+    .from('profiles')
+    .update({ club_id: clubId, role_encadrant: false, role_membre_bureau: false })
+    .eq('id', user.id);
   if (error) {
     setMessage(errorEl, 'Impossible de rejoindre ce club, réessaie.', true);
     return;
   }
 
-  enterApp(currentPseudo, clubNom);
+  enterApp(currentPseudo, clubNom, { encadrant: false, membreBureau: false });
 }
 
 async function handleClubCreate(event) {
@@ -95,14 +103,18 @@ async function handleClubCreate(event) {
       return;
     }
 
-    const { error: updateError } = await client.from('profiles').update({ club_id: club.id }).eq('id', user.id);
+    // Le createur du club est membre du bureau et encadrant en plus de joueur, des la creation.
+    const { error: updateError } = await client
+      .from('profiles')
+      .update({ club_id: club.id, role_encadrant: true, role_membre_bureau: true })
+      .eq('id', user.id);
     if (updateError) {
       setMessage(errorEl, 'Club créé, mais impossible de te rattacher au club.', true);
       return;
     }
 
     document.getElementById('club-create-form').reset();
-    enterApp(currentPseudo, club.nom);
+    enterApp(currentPseudo, club.nom, { encadrant: true, membreBureau: true });
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
   } finally {

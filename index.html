@@ -43,6 +43,58 @@
   }
   .view.active { display: flex; }
 
+  .view-app {
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 0;
+    gap: 0;
+  }
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #1f2731;
+    flex: 0 0 auto;
+  }
+  .app-club-label {
+    display: block;
+    color: #8a97a4;
+    font-size: 0.85em;
+    margin-top: 2px;
+  }
+  .app-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 12px;
+    border-bottom: 1px solid #1f2731;
+    flex: 0 0 auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-button {
+    flex: 0 0 auto;
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    color: #8a97a4;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 0.9em;
+    white-space: nowrap;
+  }
+  .tab-button.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+    font-weight: 600;
+  }
+  .app-tab-content {
+    flex: 1;
+    padding: 32px 20px;
+    color: #8a97a4;
+    text-align: center;
+  }
+
   h1 {
     margin: 0;
     font-size: 1.8em;
@@ -244,11 +296,16 @@
     </form>
   </div>
 
-  <div id="view-app" class="view">
-    <h1>UltiClub</h1>
-    <p>Connecté en tant que <strong id="app-pseudo"></strong>.</p>
-    <p>Club : <strong id="app-club"></strong></p>
-    <button type="button" id="logout-button" class="link">Se déconnecter</button>
+  <div id="view-app" class="view view-app">
+    <div class="app-header">
+      <div>
+        <strong id="app-pseudo"></strong>
+        <span class="app-club-label">Club : <strong id="app-club"></strong></span>
+      </div>
+      <button type="button" id="logout-button" class="link">Se déconnecter</button>
+    </div>
+    <nav id="app-tabs" class="app-tabs"></nav>
+    <div id="app-tab-content" class="app-tab-content"></div>
   </div>
 
   <span id="version"></span>
@@ -258,6 +315,7 @@
   <script src="js/supabase-config.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/club.js"></script>
+  <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 
   <!-- Enregistrement du service worker (voir sw.js) : silencieux si indisponible (ex. chargé

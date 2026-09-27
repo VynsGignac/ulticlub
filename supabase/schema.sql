@@ -43,6 +43,10 @@ create table public.profiles (
   nom text not null,
   pseudo text not null unique,
   club_id uuid references public.clubs (id),
+  -- Tout le monde est "joueur" par defaut (rien a stocker). Roles additionnels cumulables :
+  -- encadrant (onglet "Gestion equipe") et/ou membre du bureau (onglet "Gestion club").
+  role_encadrant boolean not null default false,
+  role_membre_bureau boolean not null default false,
   created_at timestamptz not null default now()
 );
 
