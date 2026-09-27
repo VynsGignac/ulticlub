@@ -20,53 +20,169 @@
   html, body {
     margin: 0;
     padding: 0;
-    overflow: hidden;
     background: #10151a;
     width: 100%;
-    height: 100%;
-    touch-action: none;
+    min-height: 100%;
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  #placeholder {
+
+  .view {
+    display: none;
     position: fixed;
     inset: 0;
-    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 16px;
     color: #e8edf2;
-    text-align: center;
     padding: 24px;
     box-sizing: border-box;
+    overflow-y: auto;
   }
-  #placeholder h1 {
+  .view.active { display: flex; }
+
+  h1 {
     margin: 0;
-    font-size: 2.2em;
+    font-size: 1.8em;
     letter-spacing: 0.02em;
+    text-align: center;
   }
-  #placeholder p {
+  h2 {
     margin: 0;
-    color: #8a97a4;
-    font-size: 1em;
+    font-size: 1.3em;
+    text-align: center;
+    color: #e8edf2;
   }
+
+  form {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  label {
+    font-size: 0.85em;
+    color: #8a97a4;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  input {
+    font-size: 1em;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #2a333c;
+    background: #1a2028;
+    color: #e8edf2;
+    box-sizing: border-box;
+    touch-action: manipulation;
+  }
+  input:focus { outline: 2px solid #3b82f6; }
+
+  button {
+    font-size: 1em;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button[type="submit"] {
+    background: #3b82f6;
+    color: white;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  button[type="submit"]:disabled { opacity: 0.6; }
+  button.link {
+    background: transparent;
+    color: #8a97a4;
+    text-decoration: underline;
+    padding: 4px;
+  }
+
+  .message {
+    min-height: 1.2em;
+    font-size: 0.85em;
+    text-align: center;
+    color: #6ee787;
+  }
+  .message.error { color: #f87171; }
+
   #version {
-    margin-top: 24px;
+    position: fixed;
+    bottom: 10px;
     color: #4a5560;
-    font-size: 0.8em;
+    font-size: 0.75em;
   }
 </style>
 </head>
 <body>
-  <div id="placeholder">
+
+  <div id="view-login" class="view active">
     <h1>UltiClub</h1>
-    <p>Application de gestion de club -- en construction.</p>
-    <span id="version"></span>
+    <form id="login-form">
+      <label>
+        Profil
+        <input id="login-pseudo" type="text" autocomplete="username" required>
+      </label>
+      <label>
+        Mot de passe
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-info" class="message"></p>
+      <p id="login-error" class="message error"></p>
+      <button type="submit">Se connecter</button>
+      <button type="button" id="show-signup" class="link">Nouvel utilisateur ?</button>
+    </form>
   </div>
 
+  <div id="view-signup" class="view">
+    <h2>Création de profil</h2>
+    <form id="signup-form">
+      <label>
+        Nom
+        <input id="signup-nom" type="text" autocomplete="name" required>
+      </label>
+      <label>
+        Pseudo
+        <input id="signup-pseudo" type="text" autocomplete="username" required>
+      </label>
+      <label>
+        Mot de passe
+        <input id="signup-password" type="password" autocomplete="new-password" minlength="6" required>
+      </label>
+      <label>
+        Adresse mail
+        <input id="signup-email" type="email" autocomplete="email" required>
+      </label>
+      <label>
+        Numéro de téléphone
+        <input id="signup-telephone" type="tel" autocomplete="tel" required>
+      </label>
+      <p id="signup-error" class="message error"></p>
+      <button type="submit">Créer le compte</button>
+      <button type="button" id="show-login" class="link">Retour à la connexion</button>
+    </form>
+  </div>
+
+  <div id="view-app" class="view">
+    <h1>UltiClub</h1>
+    <p>Connecté en tant que <strong id="app-pseudo"></strong>.</p>
+    <button type="button" id="logout-button" class="link">Se déconnecter</button>
+  </div>
+
+  <span id="version"></span>
+
   <script src="js/version.js"></script>
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/main.js"></script>
 
   <!-- Enregistrement du service worker (voir sw.js) : silencieux si indisponible (ex. chargé
