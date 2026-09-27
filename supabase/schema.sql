@@ -1,6 +1,7 @@
 -- ============================================================
--- Schema complet UltiClub (profils + clubs). Ce fichier est TOUJOURS l'integralite de ce qui doit
--- exister en base -- a chaque evolution du schema, il est mis a jour ici et redonne en entier.
+-- Schema complet UltiClub (profils, clubs, appartenances). Ce fichier est TOUJOURS l'integralite
+-- de ce qui doit exister en base -- a chaque evolution du schema, il est mis a jour ici et redonne
+-- en entier.
 --
 -- Idempotent : peut etre colle et execute tel quel dans le SQL Editor Supabase a tout moment (sur
 -- un projet neuf ou un projet deja partiellement a jour), sans se soucier de ce qui a deja ete
@@ -45,17 +46,14 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Club de l'utilisateur (un seul a la fois). Niveaux cumulables en plus de "joueur" (le niveau de
--- base, implicite pour tout membre d'un club, rien a stocker pour lui) : encadrant donne acces a
--- l'onglet "Gestion equipe", membre du bureau donne acces a l'onglet "Gestion club". Le createur
--- d'un club recoit les deux automatiquement (voir js/club.js).
-alter table public.profiles add column if not exists club_id uuid references public.clubs (id);
-alter table public.profiles add column if not exists role_encadrant boolean not null default false;
-alter table public.profiles add column if not exists role_membre_bureau boolean not null default false;
+-- Informations personnelles editables depuis l'onglet Profil (toutes facultatives : remplies
+-- apres coup, pas a l'inscription).
+alter table public.profiles add column if not exists prenom text;
+alter table public.profiles add column if not exists telephone text;
+alter table public.profiles add column if not exists adresse text;
+alter table public.profiles add column if not exists date_naissance date;
 
--- Ancien systeme (connexion par pseudo + telephone obligatoire), abandonne au profit de la
--- connexion par email : supprime s'il traine encore sur ce projet.
-alter table public.profiles drop column if exists telephone;
+-- Ancien systeme (connexion par pseudo), abandonne au profit de la connexion par email.
 drop function if exists public.email_for_pseudo(text);
 
 alter table public.profiles enable row level security;
@@ -72,10 +70,69 @@ create policy "Les utilisateurs lisent leur propre profil"
   to authenticated
   using (auth.uid() = id);
 
--- Necessaire pour rejoindre/creer un club ou changer de role (mise a jour de son propre profil).
 drop policy if exists "Les utilisateurs modifient leur propre profil" on public.profiles;
 create policy "Les utilisateurs modifient leur propre profil"
   on public.profiles for update
   to authenticated
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+-- --- Appartenance aux clubs -----------------------------------
+-- Un utilisateur peut appartenir a plusieurs clubs a la fois (onglet Profil : liste de ses clubs,
+-- bouton pour en quitter un ou basculer vers un autre). Chaque appartenance porte ses propres
+-- niveaux, cumulables en plus de "joueur" (le niveau de base, implicite, rien a stocker pour lui) :
+-- encadrant donne acces a l'onglet "Gestion equipe", membre du bureau donne acces a l'onglet
+-- "Gestion club". Le createur d'un club recoit les deux automatiquement.
+
+create table if not exists public.club_members (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  role_encadrant boolean not null default false,
+  role_membre_bureau boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (user_id, club_id)
+);
+
+alter table public.club_members enable row level security;
+
+drop policy if exists "Les utilisateurs lisent leurs propres appartenances" on public.club_members;
+create policy "Les utilisateurs lisent leurs propres appartenances"
+  on public.club_members for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Les utilisateurs rejoignent un club en leur nom" on public.club_members;
+create policy "Les utilisateurs rejoignent un club en leur nom"
+  on public.club_members for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Les utilisateurs quittent un club en leur nom" on public.club_members;
+create policy "Les utilisateurs quittent un club en leur nom"
+  on public.club_members for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- Club "actif" (celui affiche par defaut dans les autres onglets), parmi les appartenances de
+-- club_members ci-dessus. Migre automatiquement l'ancien modele mono-club (profiles.club_id +
+-- roles directement sur profiles) si ce projet l'utilisait encore -- sans effet si deja fait.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles' and column_name = 'club_id'
+  ) then
+    insert into public.club_members (user_id, club_id, role_encadrant, role_membre_bureau)
+    select id, club_id, role_encadrant, role_membre_bureau
+    from public.profiles
+    where club_id is not null
+    on conflict (user_id, club_id) do nothing;
+
+    alter table public.profiles rename column club_id to active_club_id;
+  end if;
+end $$;
+
+alter table public.profiles add column if not exists active_club_id uuid references public.clubs (id);
+alter table public.profiles drop column if exists role_encadrant;
+alter table public.profiles drop column if exists role_membre_bureau;

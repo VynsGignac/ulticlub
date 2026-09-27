@@ -1,6 +1,8 @@
 // ============================================================
-// Selection de club apres connexion : recherche, creation, et memorisation du club de
-// l'utilisateur (profiles.club_id). Un utilisateur appartient a un seul club a la fois.
+// Selection de club apres connexion : recherche, creation, et appartenance de l'utilisateur
+// (table club_members). Un utilisateur peut appartenir a plusieurs clubs ; profiles.active_club_id
+// indique celui affiche par defaut dans les autres onglets (voir aussi js/profile.js pour changer
+// de club actif ou en quitter un).
 // ============================================================
 
 let currentPseudo = '';
@@ -14,22 +16,36 @@ function showClubSelect(pseudo) {
   showView('view-club-select');
 }
 
-// Appelee juste apres une connexion reussie (login ou reprise de session) : passe directement a
-// l'app si l'utilisateur a deja un club, sinon affiche la selection de club.
+// Appelee juste apres une connexion reussie (login, reprise de session, creation/jonction/
+// changement de club) : passe directement a l'app avec le club actif de l'utilisateur, ou affiche
+// la selection de club s'il n'en a aucun.
 async function routeAfterLogin(userId, fallbackPseudo) {
   const profile = await fetchOwnProfile(userId);
   const pseudo = profile ? profile.pseudo : fallbackPseudo;
-  const roles = {
-    encadrant: !!(profile && profile.role_encadrant),
-    membreBureau: !!(profile && profile.role_membre_bureau),
-  };
+  currentPseudo = pseudo;
 
-  if (profile && profile.club_id) {
-    const { data: club } = await client.from('clubs').select('nom').eq('id', profile.club_id).single();
-    enterApp(pseudo, club ? club.nom : '', roles);
-  } else {
-    showClubSelect(pseudo);
+  if (profile && profile.active_club_id) {
+    const { data: membership } = await client
+      .from('club_members')
+      .select('role_encadrant, role_membre_bureau, clubs (nom)')
+      .eq('user_id', userId)
+      .eq('club_id', profile.active_club_id)
+      .single();
+
+    if (membership) {
+      enterApp(pseudo, membership.clubs.nom, {
+        encadrant: membership.role_encadrant,
+        membreBureau: membership.role_membre_bureau,
+      });
+      return;
+    }
+
+    // Le club actif n'a plus d'appartenance correspondante (quitte depuis un autre appareil) :
+    // on nettoie et on retombe sur la selection de club.
+    await client.from('profiles').update({ active_club_id: null }).eq('id', userId);
   }
+
+  showClubSelect(pseudo);
 }
 
 async function searchClubs(query) {
@@ -56,27 +72,35 @@ async function searchClubs(query) {
   for (const club of data) {
     const li = document.createElement('li');
     li.textContent = club.nom;
-    li.addEventListener('click', () => joinClub(club.id, club.nom));
+    li.addEventListener('click', () => joinClub(club.id));
     resultsEl.appendChild(li);
   }
 }
 
-async function joinClub(clubId, clubNom) {
+async function joinClub(clubId) {
   const errorEl = document.getElementById('club-select-error');
   setMessage(errorEl, '');
 
   const { data: { user } } = await client.auth.getUser();
-  // Remet les roles a zero : ils sont propres au club quitte/rejoint, pas transferables entre clubs.
-  const { error } = await client
-    .from('profiles')
-    .update({ club_id: clubId, role_encadrant: false, role_membre_bureau: false })
-    .eq('id', user.id);
-  if (error) {
+
+  const { error: memberError } = await client
+    .from('club_members')
+    .insert({ user_id: user.id, club_id: clubId, role_encadrant: false, role_membre_bureau: false });
+
+  // 23505 = deja membre de ce club (contrainte unique user_id+club_id) : pas grave, on bascule
+  // simplement dessus.
+  if (memberError && memberError.code !== '23505') {
     setMessage(errorEl, 'Impossible de rejoindre ce club, réessaie.', true);
     return;
   }
 
-  enterApp(currentPseudo, clubNom, { encadrant: false, membreBureau: false });
+  const { error: profileError } = await client.from('profiles').update({ active_club_id: clubId }).eq('id', user.id);
+  if (profileError) {
+    setMessage(errorEl, 'Impossible de rejoindre ce club, réessaie.', true);
+    return;
+  }
+
+  await routeAfterLogin(user.id, currentPseudo);
 }
 
 async function handleClubCreate(event) {
@@ -104,17 +128,22 @@ async function handleClubCreate(event) {
     }
 
     // Le createur du club est membre du bureau et encadrant en plus de joueur, des la creation.
-    const { error: updateError } = await client
-      .from('profiles')
-      .update({ club_id: club.id, role_encadrant: true, role_membre_bureau: true })
-      .eq('id', user.id);
-    if (updateError) {
+    const { error: memberError } = await client
+      .from('club_members')
+      .insert({ user_id: user.id, club_id: club.id, role_encadrant: true, role_membre_bureau: true });
+    if (memberError) {
       setMessage(errorEl, 'Club créé, mais impossible de te rattacher au club.', true);
       return;
     }
 
+    const { error: profileError } = await client.from('profiles').update({ active_club_id: club.id }).eq('id', user.id);
+    if (profileError) {
+      setMessage(errorEl, 'Club créé, mais impossible de l’activer.', true);
+      return;
+    }
+
     document.getElementById('club-create-form').reset();
-    enterApp(currentPseudo, club.nom, { encadrant: true, membreBureau: true });
+    await routeAfterLogin(user.id, currentPseudo);
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
   } finally {

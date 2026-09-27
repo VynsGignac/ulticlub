@@ -94,6 +94,21 @@
     color: #8a97a4;
     text-align: center;
   }
+  .tab-content-profil {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 24px 20px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+  .profil-clubs h2 { margin-bottom: 4px; }
+  .profil-clubs .club-results li.active-club {
+    border-color: #3b82f6;
+    color: #e8edf2;
+  }
 
   h1 {
     margin: 0;
@@ -306,6 +321,47 @@
     </div>
     <nav id="app-tabs" class="app-tabs"></nav>
     <div id="app-tab-content" class="app-tab-content"></div>
+
+    <div id="tab-content-profil" class="tab-content-profil" style="display: none;">
+      <form id="profil-form" class="panel">
+        <h2>Mes informations</h2>
+        <label>
+          Pseudo
+          <input id="profil-pseudo" type="text" required>
+        </label>
+        <label>
+          Prénom
+          <input id="profil-prenom" type="text">
+        </label>
+        <label>
+          Nom
+          <input id="profil-nom" type="text" required>
+        </label>
+        <label>
+          Numéro de téléphone
+          <input id="profil-telephone" type="tel">
+        </label>
+        <label>
+          Adresse
+          <input id="profil-adresse" type="text">
+        </label>
+        <label>
+          Date de naissance
+          <input id="profil-date-naissance" type="date">
+        </label>
+        <p id="profil-info" class="message"></p>
+        <p id="profil-error" class="message error"></p>
+        <button type="submit">Enregistrer</button>
+      </form>
+
+      <div class="panel profil-clubs">
+        <h2>Mes clubs</h2>
+        <ul id="profil-club-list" class="club-results"></ul>
+        <button type="button" id="profil-leave-club" class="link"></button>
+        <button type="button" id="profil-switch-club" class="link">Basculer vers un autre club</button>
+        <ul id="profil-switch-list" class="club-results" style="display: none;"></ul>
+      </div>
+    </div>
   </div>
 
   <span id="version"></span>
@@ -315,6 +371,7 @@
   <script src="js/supabase-config.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/club.js"></script>
+  <script src="js/profile.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 

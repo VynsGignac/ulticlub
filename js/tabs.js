@@ -1,7 +1,8 @@
 // ============================================================
 // Onglets de l'espace club. Tout le monde est "joueur" (acces aux onglets communs) ; les niveaux
 // additionnels et cumulables encadrant / membre du bureau debloquent respectivement "Gestion
-// equipe" et "Gestion club". Le contenu de chaque onglet n'est pas encore implemente (placeholder).
+// equipe" et "Gestion club". Seul l'onglet Profil a un vrai contenu (voir js/profile.js) ; les
+// autres sont des placeholders en attendant leur implementation.
 // ============================================================
 
 const TABS = [
@@ -11,6 +12,7 @@ const TABS = [
   { id: 'vie-club', label: 'Vie de club' },
   { id: 'gestion-equipe', label: 'Gestion équipe', requires: 'encadrant' },
   { id: 'gestion-club', label: 'Gestion club', requires: 'membreBureau' },
+  { id: 'profil', label: 'Profil' },
 ];
 
 function tabsVisibleFor(roles) {
@@ -22,7 +24,16 @@ function selectTab(tabId) {
   document.querySelectorAll('#app-tabs .tab-button').forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === tabId);
   });
-  document.getElementById('app-tab-content').textContent = tab ? `${tab.label} — contenu à venir.` : '';
+
+  const isProfil = tabId === 'profil';
+  document.getElementById('app-tab-content').style.display = isProfil ? 'none' : '';
+  document.getElementById('tab-content-profil').style.display = isProfil ? '' : 'none';
+
+  if (isProfil) {
+    renderProfilTab();
+  } else {
+    document.getElementById('app-tab-content').textContent = tab ? `${tab.label} — contenu à venir.` : '';
+  }
 }
 
 function renderTabs(roles) {

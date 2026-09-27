@@ -20,7 +20,7 @@ function setMessage(el, message, isError) {
 async function fetchOwnProfile(userId) {
   const { data } = await client
     .from('profiles')
-    .select('pseudo, nom, club_id, role_encadrant, role_membre_bureau')
+    .select('pseudo, nom, prenom, telephone, adresse, date_naissance, active_club_id')
     .eq('id', userId)
     .single();
   return data;
