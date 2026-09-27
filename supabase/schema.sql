@@ -53,6 +53,11 @@ alter table public.profiles add column if not exists telephone text;
 alter table public.profiles add column if not exists adresse text;
 alter table public.profiles add column if not exists date_naissance date;
 
+-- Sur les installations anterieures a la suppression du telephone obligatoire a l'inscription,
+-- cette colonne a ete creee "not null" : on l'assouplit pour que les nouvelles inscriptions
+-- (qui ne renseignent plus le telephone) ne cassent plus l'insertion du profil.
+alter table public.profiles alter column telephone drop not null;
+
 -- Case a cocher "visible par les membres hors du bureau" pour ces 4 champs (email, telephone,
 -- adresse, date de naissance) : cochee par defaut. Ne pilote encore aucune logique d'affichage
 -- reelle, seulement la preference de l'utilisateur -- la visibilite en elle-meme viendra plus tard.
