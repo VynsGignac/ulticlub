@@ -18,12 +18,13 @@ function setMessage(el, message, isError) {
 }
 
 async function fetchOwnProfile(userId) {
-  const { data } = await client.from('profiles').select('pseudo, nom').eq('id', userId).single();
+  const { data } = await client.from('profiles').select('pseudo, nom, club_id').eq('id', userId).single();
   return data;
 }
 
-function enterApp(pseudo) {
+function enterApp(pseudo, clubNom) {
   document.getElementById('app-pseudo').textContent = pseudo;
+  document.getElementById('app-club').textContent = clubNom || '';
   showView('view-app');
 }
 
@@ -43,8 +44,7 @@ async function handleLogin(event) {
       return;
     }
 
-    const profile = await fetchOwnProfile(data.user.id);
-    enterApp(profile ? profile.pseudo : email);
+    await routeAfterLogin(data.user.id, email);
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, reessaie plus tard.', true);
   } finally {
@@ -137,7 +137,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Reste connecte d'un lancement de l'app a l'autre tant que la session Supabase est valide.
   const { data: { session } } = await client.auth.getSession();
   if (session) {
-    const profile = await fetchOwnProfile(session.user.id);
-    enterApp(profile ? profile.pseudo : session.user.email);
+    await routeAfterLogin(session.user.id, session.user.email);
   }
 });

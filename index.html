@@ -56,12 +56,38 @@
     color: #e8edf2;
   }
 
-  form {
+  form, .panel {
     width: 100%;
     max-width: 320px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .club-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .club-results li {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    cursor: pointer;
+  }
+  .club-results li:hover { border-color: #3b82f6; }
+  .club-results li.empty {
+    color: #4a5560;
+    text-align: center;
+    cursor: default;
+    background: transparent;
+    border: none;
   }
 
   label {
@@ -192,9 +218,36 @@
     </form>
   </div>
 
+  <div id="view-club-select" class="view">
+    <h1>UltiClub</h1>
+    <div class="panel">
+      <label>
+        Rechercher un club
+        <input id="club-search" type="text" placeholder="Nom du club...">
+      </label>
+      <ul id="club-results" class="club-results"></ul>
+      <p id="club-select-error" class="message error"></p>
+      <button type="button" id="show-club-create" class="link">Créer un club</button>
+    </div>
+  </div>
+
+  <div id="view-club-create" class="view">
+    <h2>Créer un club</h2>
+    <form id="club-create-form">
+      <label>
+        Nom du club
+        <input id="club-create-nom" type="text" required>
+      </label>
+      <p id="club-create-error" class="message error"></p>
+      <button type="submit">Créer</button>
+      <button type="button" id="show-club-select" class="link">Retour</button>
+    </form>
+  </div>
+
   <div id="view-app" class="view">
     <h1>UltiClub</h1>
     <p>Connecté en tant que <strong id="app-pseudo"></strong>.</p>
+    <p>Club : <strong id="app-club"></strong></p>
     <button type="button" id="logout-button" class="link">Se déconnecter</button>
   </div>
 
@@ -204,6 +257,7 @@
   <script src="js/vendor/supabase.js"></script>
   <script src="js/supabase-config.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/club.js"></script>
   <script src="js/main.js"></script>
 
   <!-- Enregistrement du service worker (voir sw.js) : silencieux si indisponible (ex. chargé
