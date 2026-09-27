@@ -9,7 +9,6 @@
 const TABS = [
   { id: 'calendrier', label: 'Calendrier' },
   { id: 'saison', label: 'Saison' },
-  { id: 'administratif', label: 'Administratif' },
   { id: 'vie-club', label: 'Vie de club' },
   { id: 'gestion-equipe', label: 'Gestion équipe', requires: 'encadrant' },
   { id: 'gestion-club', label: 'Gestion club', requires: 'membreBureau' },
@@ -25,7 +24,12 @@ const CUSTOM_TAB_CONTAINERS = {
   'gestion-club': { containerId: 'tab-content-gestion-club', render: renderGestionClubTab },
   'club-event-create': { containerId: 'tab-content-club-event-create', render: renderClubEventCreateTab },
   profil: { containerId: 'tab-content-profil', render: renderProfilTab },
+  communications: { containerId: 'tab-content-communications', render: renderCommunicationsTab },
 };
+
+// Dernier onglet reellement selectionne dans #app-tabs (utilise par le bouton flottant
+// "communications", accessible depuis n'importe quel onglet, pour savoir ou revenir).
+let currentTabId = null;
 
 function tabsVisibleFor(roles) {
   return TABS.filter((tab) => !tab.requires || roles[tab.requires]);
@@ -41,6 +45,7 @@ function selectTab(tabId) {
   // l'affiche, pas aux autres onglets (il est en position fixed, donc invisible autrement pour le
   // JS mais visible a l'ecran par-dessus tout le reste).
   if (tabId !== 'gestion-club') hideClubDebtSaveButton();
+  document.getElementById('communications-fab').style.display = tabId === 'communications' ? 'none' : '';
 
   const custom = CUSTOM_TAB_CONTAINERS[tabId];
   document.getElementById('app-tab-content').style.display = custom ? 'none' : '';
@@ -53,6 +58,8 @@ function selectTab(tabId) {
   } else {
     document.getElementById('app-tab-content').textContent = tab ? `${tab.label} — contenu à venir.` : '';
   }
+
+  currentTabId = tabId;
 }
 
 function renderTabs(roles) {

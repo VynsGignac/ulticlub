@@ -1,7 +1,8 @@
 // ============================================================
 // Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche un point sur les jours
-// ayant au moins un evenement (parmi les equipes dont l'utilisateur est membre), y compris les
-// occurrences des evenements cycliques (hebdomadaires). Le detail au clic viendra plus tard.
+// ayant au moins un evenement (parmi les equipes dont l'utilisateur est membre, et les clubs dont
+// il est membre), y compris les occurrences des evenements cycliques (hebdomadaires). Cliquer sur
+// un jour avec un point affiche le detail des evenements de ce jour en dessous du calendrier.
 // ============================================================
 
 const CALENDRIER_MOIS = [
@@ -13,6 +14,8 @@ const CALENDRIER_JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const calendrierToday = new Date();
 let calendrierYear = calendrierToday.getFullYear();
 let calendrierMonth = calendrierToday.getMonth();
+let calendrierEventsByDate = new Map();
+let calendrierSelectedDate = null;
 
 // Numero de semaine ISO 8601 (lundi = debut de semaine, la semaine 1 est celle contenant le
 // premier jeudi de l'annee) -- methode standard : recaler sur le jeudi de la semaine puis compter
@@ -60,9 +63,10 @@ function expandEventDates(evt) {
   return dates;
 }
 
-// Fusionne les evenements d'equipe (des equipes dont on est membre) et les evenements de club
-// (de tous les clubs dont on est membre, quel que soit le club actif).
-async function fetchEventDatesForCurrentUser() {
+// Fusionne les evenements d'equipe (des equipes dont on est membre) et les evenements de club (de
+// tous les clubs dont on est membre, quel que soit le club actif), et les indexe par jour pour le
+// detail au clic.
+async function fetchEventsByDateForCurrentUser() {
   const { data: { user } } = await client.auth.getUser();
 
   const [{ data: teamMemberships }, { data: clubMemberships }] = await Promise.all([
@@ -72,24 +76,98 @@ async function fetchEventDatesForCurrentUser() {
   const teamIds = (teamMemberships || []).map((m) => m.team_id);
   const clubIds = (clubMemberships || []).map((m) => m.club_id);
 
+  const eventFields = 'id, nom, date_debut, date_fin, heure_debut, heure_fin, lieu, commentaire, cyclique, date_derniere_occurrence';
   const [teamEventsRes, clubEventsRes] = await Promise.all([
     teamIds.length
-      ? client.from('team_events').select('date_debut, date_fin, cyclique, date_derniere_occurrence').in('team_id', teamIds)
+      ? client.from('team_events').select(`${eventFields}, teams (nom)`).in('team_id', teamIds)
       : Promise.resolve({ data: [] }),
     clubIds.length
-      ? client.from('club_events').select('date_debut, date_fin, cyclique, date_derniere_occurrence').in('club_id', clubIds)
+      ? client.from('club_events').select(`${eventFields}, clubs (nom)`).in('club_id', clubIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  const allDates = new Set();
-  for (const evt of [...(teamEventsRes.data || []), ...(clubEventsRes.data || [])]) {
-    for (const isoDate of expandEventDates(evt)) allDates.add(isoDate);
+  const eventsByDate = new Map();
+  const addEvent = (evt, sourceLabel) => {
+    const detail = {
+      nom: evt.nom,
+      heureDebut: evt.heure_debut,
+      heureFin: evt.heure_fin,
+      lieu: evt.lieu,
+      commentaire: evt.commentaire,
+      sourceLabel,
+    };
+    for (const isoDate of expandEventDates(evt)) {
+      if (!eventsByDate.has(isoDate)) eventsByDate.set(isoDate, []);
+      eventsByDate.get(isoDate).push(detail);
+    }
+  };
+
+  for (const evt of teamEventsRes.data || []) addEvent(evt, evt.teams ? evt.teams.nom : 'Équipe');
+  for (const evt of clubEventsRes.data || []) addEvent(evt, evt.clubs ? `Club — ${evt.clubs.nom}` : 'Club');
+
+  return eventsByDate;
+}
+
+function renderCalendrierDayDetail(isoDate) {
+  calendrierSelectedDate = isoDate;
+  const detailEl = document.getElementById('calendrier-day-detail');
+  const events = calendrierEventsByDate.get(isoDate) || [];
+
+  if (!events.length) {
+    detailEl.style.display = 'none';
+    detailEl.innerHTML = '';
+    return;
   }
-  return allDates;
+
+  const dateLabel = new Date(`${isoDate}T00:00:00`).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+
+  const wrapper = document.createElement('div');
+
+  const title = document.createElement('h2');
+  title.textContent = dateLabel;
+  wrapper.appendChild(title);
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const evt of events) {
+    const li = document.createElement('li');
+    li.classList.add('event-detail-item');
+
+    const nomEl = document.createElement('strong');
+    nomEl.textContent = evt.nom;
+    li.appendChild(nomEl);
+
+    const heures = evt.heureDebut && evt.heureFin ? `${evt.heureDebut.slice(0, 5)} – ${evt.heureFin.slice(0, 5)}` : '';
+    const meta = document.createElement('div');
+    meta.className = 'communication-meta';
+    meta.textContent = [evt.sourceLabel, heures, evt.lieu].filter(Boolean).join(' · ');
+    li.appendChild(meta);
+
+    if (evt.commentaire) {
+      const comment = document.createElement('div');
+      comment.className = 'communication-body';
+      comment.textContent = evt.commentaire;
+      li.appendChild(comment);
+    }
+
+    listEl.appendChild(li);
+  }
+  wrapper.appendChild(listEl);
+
+  detailEl.innerHTML = '';
+  detailEl.appendChild(wrapper);
+  detailEl.style.display = '';
 }
 
 async function renderCalendrierTab() {
   document.getElementById('calendrier-label').textContent = `${CALENDRIER_MOIS[calendrierMonth]} ${calendrierYear}`;
+
+  const detailEl = document.getElementById('calendrier-day-detail');
+  detailEl.style.display = 'none';
+  detailEl.innerHTML = '';
+  calendrierSelectedDate = null;
 
   const grid = document.getElementById('calendrier-grid');
   grid.innerHTML = '';
@@ -115,7 +193,7 @@ async function renderCalendrierTab() {
     date.getMonth() === calendrierToday.getMonth() &&
     date.getDate() === calendrierToday.getDate();
 
-  const eventDates = await fetchEventDatesForCurrentUser();
+  calendrierEventsByDate = await fetchEventsByDateForCurrentUser();
 
   for (let i = 0; i < totalDays; i += 7) {
     const weekStart = new Date(calendrierYear, calendrierMonth, i - firstWeekday + 1);
@@ -126,14 +204,16 @@ async function renderCalendrierTab() {
 
     for (let j = 0; j < 7; j++) {
       const date = new Date(calendrierYear, calendrierMonth, i + j - firstWeekday + 1);
+      const isoDate = toLocalIsoDate(date);
       const outside = date.getMonth() !== calendrierMonth;
-      const hasEvent = eventDates.has(toLocalIsoDate(date));
+      const hasEvent = calendrierEventsByDate.has(isoDate);
       const cell = document.createElement('div');
       cell.className = 'calendrier-day'
         + (outside ? ' outside' : '')
         + (isToday(date) ? ' today' : '')
         + (hasEvent ? ' has-event' : '');
       cell.textContent = date.getDate();
+      if (hasEvent) cell.addEventListener('click', () => renderCalendrierDayDetail(isoDate));
       grid.appendChild(cell);
     }
   }

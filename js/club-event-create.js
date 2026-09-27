@@ -1,21 +1,12 @@
 // ============================================================
-// Creation d'un evenement pour tout le club (ouvert depuis "Creer un evenement" dans l'onglet
-// Gestion club -- voir js/club-management.js). Equivalent de js/event-create.js mais insere dans
-// club_events (visible par tous les membres du club, pas seulement une equipe).
+// Creation d'un evenement pour tout le club (ouvert depuis le bouton "Creer un evenement" dans
+// l'onglet Gestion club -- voir js/club-management.js). Equivalent de js/event-create.js mais
+// insere dans club_events (visible par tous les membres du club, pas seulement une equipe). Pas
+// d'onglet dedie dans #app-tabs : la vue s'affiche directement, avec un bouton "Retour" qui revient
+// a Gestion club.
 // ============================================================
 
 function openClubEventCreate() {
-  let button = document.querySelector('#app-tabs .tab-button[data-tab="club-event-create"]');
-  if (!button) {
-    button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tab-button';
-    button.dataset.tab = 'club-event-create';
-    button.addEventListener('click', () => selectTab('club-event-create'));
-    document.getElementById('app-tabs').appendChild(button);
-  }
-  button.textContent = 'Créer un événement';
-
   selectTab('club-event-create');
 }
 
@@ -83,4 +74,5 @@ async function handleClubEventCreate(event) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-event-cyclique').addEventListener('change', toggleClubEventCycliqueField);
   document.getElementById('club-event-create-form').addEventListener('submit', handleClubEventCreate);
+  document.getElementById('club-event-create-back').addEventListener('click', () => selectTab('gestion-club'));
 });

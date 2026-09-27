@@ -1,23 +1,12 @@
 // ============================================================
-// Creation d'un evenement pour une equipe (ouvert depuis "Creer un evenement" dans le detail
-// d'equipe -- voir js/team-detail.js). Cyclique = hebdomadaire ; dans ce cas la date de derniere
-// occurrence est obligatoire. "Demander confirmation" ne pilote encore aucune logique, son usage
-// sera defini plus tard. L'affichage des evenements (calendrier, etc.) viendra dans une prochaine
-// etape : ici on ne fait que les creer.
+// Creation d'un evenement pour une equipe (ouvert depuis le bouton "Creer un evenement" dans le
+// detail d'equipe -- voir js/team-detail.js). Pas d'onglet dedie dans #app-tabs : la vue s'affiche
+// directement, avec un bouton "Retour" qui revient au detail de l'equipe. Cyclique = hebdomadaire ;
+// dans ce cas la date de derniere occurrence est obligatoire. "Demander confirmation" ne pilote
+// encore aucune logique, son usage sera defini plus tard.
 // ============================================================
 
 function openEventCreate() {
-  let button = document.querySelector('#app-tabs .tab-button[data-tab="event-create"]');
-  if (!button) {
-    button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tab-button';
-    button.dataset.tab = 'event-create';
-    button.addEventListener('click', () => selectTab('event-create'));
-    document.getElementById('app-tabs').appendChild(button);
-  }
-  button.textContent = 'Créer un événement';
-
   selectTab('event-create');
 }
 
@@ -85,4 +74,5 @@ async function handleEventCreate(event) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('event-cyclique').addEventListener('change', toggleCycliqueField);
   document.getElementById('event-create-form').addEventListener('submit', handleEventCreate);
+  document.getElementById('event-create-back').addEventListener('click', () => selectTab('team-detail'));
 });

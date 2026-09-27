@@ -311,6 +311,41 @@
     background: #1e2a3d;
     font-weight: 700;
   }
+  .calendrier-day.has-event { cursor: pointer; }
+  #calendrier-day-detail {
+    width: 100%;
+    max-width: 360px;
+  }
+  .event-detail-item { cursor: default; }
+
+  .floating-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: white;
+    font-size: 1.4em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+    z-index: 50;
+    padding: 0;
+  }
+
+  .tab-content-communications {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
 
   h1 {
     margin: 0;
@@ -549,6 +584,7 @@
         <button type="button" id="calendrier-next" class="link">›</button>
       </div>
       <div id="calendrier-grid" class="calendrier-grid"></div>
+      <div id="calendrier-day-detail" class="panel" style="display: none;"></div>
     </div>
 
     <div id="tab-content-gestion-equipe" class="tab-content-gestion-equipe" style="display: none;">
@@ -659,6 +695,7 @@
         <p id="event-create-info" class="message"></p>
         <p id="event-create-error" class="message error"></p>
         <button type="submit">Créer l'événement</button>
+        <button type="button" id="event-create-back" class="link">Retour</button>
       </form>
     </div>
 
@@ -740,6 +777,7 @@
         <p id="club-event-create-info" class="message"></p>
         <p id="club-event-create-error" class="message error"></p>
         <button type="submit">Créer l'événement</button>
+        <button type="button" id="club-event-create-back" class="link">Retour</button>
       </form>
     </div>
 
@@ -824,6 +862,13 @@
         </div>
       </div>
     </div>
+
+    <div id="tab-content-communications" class="tab-content-communications" style="display: none;">
+      <h2>Communications</h2>
+      <div id="communications-content" class="team-detail-content"></div>
+    </div>
+
+    <button type="button" id="communications-fab" class="floating-fab" aria-label="Communications">💬</button>
   </div>
 
   <span id="version"></span>
@@ -841,6 +886,7 @@
   <script src="js/selection-create.js"></script>
   <script src="js/club-management.js"></script>
   <script src="js/club-event-create.js"></script>
+  <script src="js/communications.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 
