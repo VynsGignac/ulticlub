@@ -170,6 +170,17 @@
     max-width: 360px;
   }
 
+  .tab-content-event-create {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 24px 20px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
   .tab-content-calendrier {
     flex: 1;
     overflow-y: auto;
@@ -221,6 +232,7 @@
     color: #4a5560;
   }
   .calendrier-day {
+    position: relative;
     aspect-ratio: 1;
     display: flex;
     align-items: center;
@@ -231,6 +243,17 @@
     color: #e8edf2;
     font-size: 0.9em;
     box-sizing: border-box;
+  }
+  .calendrier-day.has-event::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #3b82f6;
   }
   .calendrier-day.outside {
     color: #4a5560;
@@ -298,7 +321,7 @@
     gap: 4px;
   }
 
-  input:not([type="checkbox"]), select {
+  input:not([type="checkbox"]), select, textarea {
     font-size: 1em;
     padding: 10px 12px;
     border-radius: 8px;
@@ -307,8 +330,10 @@
     color: #e8edf2;
     box-sizing: border-box;
     touch-action: manipulation;
+    font-family: inherit;
+    resize: vertical;
   }
-  input:not([type="checkbox"]):focus, select:focus { outline: 2px solid #3b82f6; }
+  input:not([type="checkbox"]):focus, select:focus, textarea:focus { outline: 2px solid #3b82f6; }
   input:not([type="checkbox"]):disabled { opacity: 0.6; }
 
   .checkbox-label {
@@ -542,6 +567,55 @@
       <div id="team-detail-content" class="team-detail-content"></div>
     </div>
 
+    <div id="tab-content-event-create" class="tab-content-event-create" style="display: none;">
+      <h2>Créer un événement</h2>
+      <form id="event-create-form" class="panel">
+        <label>
+          Nom de l'événement
+          <input id="event-nom" type="text" required>
+        </label>
+        <label>
+          Date de début
+          <input id="event-date-debut" type="date" required>
+        </label>
+        <label>
+          Date de fin
+          <input id="event-date-fin" type="date" required>
+        </label>
+        <label>
+          Heure de début
+          <input id="event-heure-debut" type="time" required>
+        </label>
+        <label>
+          Heure de fin
+          <input id="event-heure-fin" type="time" required>
+        </label>
+        <label>
+          Lieu
+          <input id="event-lieu" type="text" required>
+        </label>
+        <label>
+          Commentaire
+          <textarea id="event-commentaire" rows="3"></textarea>
+        </label>
+        <label class="checkbox-label">
+          <input id="event-cyclique" type="checkbox">
+          Cyclique (toutes les semaines)
+        </label>
+        <label id="event-derniere-occurrence-label" style="display: none;">
+          Date de dernière occurrence
+          <input id="event-derniere-occurrence" type="date">
+        </label>
+        <label class="checkbox-label">
+          <input id="event-demande-confirmation" type="checkbox">
+          Demander confirmation
+        </label>
+        <p id="event-create-info" class="message"></p>
+        <p id="event-create-error" class="message error"></p>
+        <button type="submit">Créer l'événement</button>
+      </form>
+    </div>
+
     <div id="tab-content-profil" class="tab-content-profil" style="display: none;">
       <form id="profil-form" class="panel">
         <h2>Mes informations</h2>
@@ -615,6 +689,7 @@
   <script src="js/calendar.js"></script>
   <script src="js/team-management.js"></script>
   <script src="js/team-detail.js"></script>
+  <script src="js/event-create.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 

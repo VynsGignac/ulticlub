@@ -326,3 +326,56 @@ create policy "Les encadrants ajoutent des membres a l'equipe"
     join public.club_members cm on cm.club_id = t.club_id
     where t.id = team_members.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
   ));
+
+-- --- Evenements d'equipe ----------------------------------------
+-- Un evenement appartient a une equipe. Cyclique = hebdomadaire ; dans ce cas la date de derniere
+-- occurrence est obligatoire (verifie aussi cote base, pas seulement cote app). "demande
+-- confirmation" ne pilote encore aucune logique -- son usage sera defini plus tard. L'affichage
+-- des evenements (calendrier, etc.) n'est pas encore implemente : pour l'instant, seule leur
+-- creation existe.
+
+create table if not exists public.team_events (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams (id) on delete cascade,
+  nom text not null,
+  date_debut date not null,
+  date_fin date not null,
+  heure_debut time not null,
+  heure_fin time not null,
+  lieu text not null,
+  commentaire text,
+  cyclique boolean not null default false,
+  date_derniere_occurrence date,
+  demande_confirmation boolean not null default false,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.team_events drop constraint if exists team_events_cyclique_check;
+alter table public.team_events add constraint team_events_cyclique_check
+  check (not cyclique or date_derniere_occurrence is not null);
+
+alter table public.team_events enable row level security;
+
+drop policy if exists "Les membres du club lisent les evenements d'equipe" on public.team_events;
+create policy "Les membres du club lisent les evenements d'equipe"
+  on public.team_events for select
+  to authenticated
+  using (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_events.team_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les encadrants creent un evenement d'equipe" on public.team_events;
+create policy "Les encadrants creent un evenement d'equipe"
+  on public.team_events for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.teams t
+      join public.club_members cm on cm.club_id = t.club_id
+      where t.id = team_events.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    )
+  );

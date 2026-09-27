@@ -1,7 +1,7 @@
 // ============================================================
-// Onglet Calendrier : vue mensuelle classique, en lecture seule. Accueillera plus tard des
-// evenements (ponctuels ou cycliques) cliquables pour plus de details -- pas encore implemente,
-// cet onglet affiche pour l'instant uniquement la grille du mois avec navigation.
+// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche un point sur les jours
+// ayant au moins un evenement (parmi les equipes dont l'utilisateur est membre), y compris les
+// occurrences des evenements cycliques (hebdomadaires). Le detail au clic viendra plus tard.
 // ============================================================
 
 const CALENDRIER_MOIS = [
@@ -25,7 +25,61 @@ function getISOWeek(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-function renderCalendrierTab() {
+// Format YYYY-MM-DD en heure locale (pas toISOString(), qui convertit en UTC et peut decaler le
+// jour selon le fuseau horaire).
+function toLocalIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Deroule un evenement (eventuellement cyclique/hebdomadaire) en l'ensemble des jours qu'il
+// occupe, du debut a la derniere occurrence.
+function expandEventDates(evt) {
+  const dates = new Set();
+  const start = new Date(`${evt.date_debut}T00:00:00`);
+  const end = new Date(`${evt.date_fin}T00:00:00`);
+  const spanDays = Math.max(0, Math.round((end - start) / 86400000));
+  const lastOccurrence = evt.cyclique && evt.date_derniere_occurrence
+    ? new Date(`${evt.date_derniere_occurrence}T00:00:00`)
+    : start;
+
+  const occurrenceStart = new Date(start);
+  // Garde-fou : jamais plus de 260 occurrences (~5 ans hebdomadaires) pour eviter une boucle
+  // interminable en cas de date de derniere occurrence aberrante.
+  for (let i = 0; i < 260 && occurrenceStart <= lastOccurrence; i++) {
+    for (let d = 0; d <= spanDays; d++) {
+      const day = new Date(occurrenceStart);
+      day.setDate(day.getDate() + d);
+      dates.add(toLocalIsoDate(day));
+    }
+    if (!evt.cyclique) break;
+    occurrenceStart.setDate(occurrenceStart.getDate() + 7);
+  }
+  return dates;
+}
+
+async function fetchEventDatesForCurrentUser() {
+  const { data: { user } } = await client.auth.getUser();
+
+  const { data: memberships } = await client.from('team_members').select('team_id').eq('user_id', user.id);
+  const teamIds = (memberships || []).map((m) => m.team_id);
+  if (!teamIds.length) return new Set();
+
+  const { data: events } = await client
+    .from('team_events')
+    .select('date_debut, date_fin, cyclique, date_derniere_occurrence')
+    .in('team_id', teamIds);
+
+  const allDates = new Set();
+  for (const evt of events || []) {
+    for (const isoDate of expandEventDates(evt)) allDates.add(isoDate);
+  }
+  return allDates;
+}
+
+async function renderCalendrierTab() {
   document.getElementById('calendrier-label').textContent = `${CALENDRIER_MOIS[calendrierMonth]} ${calendrierYear}`;
 
   const grid = document.getElementById('calendrier-grid');
@@ -52,6 +106,8 @@ function renderCalendrierTab() {
     date.getMonth() === calendrierToday.getMonth() &&
     date.getDate() === calendrierToday.getDate();
 
+  const eventDates = await fetchEventDatesForCurrentUser();
+
   for (let i = 0; i < totalDays; i += 7) {
     const weekStart = new Date(calendrierYear, calendrierMonth, i - firstWeekday + 1);
     const weekNumCell = document.createElement('div');
@@ -62,8 +118,12 @@ function renderCalendrierTab() {
     for (let j = 0; j < 7; j++) {
       const date = new Date(calendrierYear, calendrierMonth, i + j - firstWeekday + 1);
       const outside = date.getMonth() !== calendrierMonth;
+      const hasEvent = eventDates.has(toLocalIsoDate(date));
       const cell = document.createElement('div');
-      cell.className = 'calendrier-day' + (outside ? ' outside' : '') + (isToday(date) ? ' today' : '');
+      cell.className = 'calendrier-day'
+        + (outside ? ' outside' : '')
+        + (isToday(date) ? ' today' : '')
+        + (hasEvent ? ' has-event' : '');
       cell.textContent = date.getDate();
       grid.appendChild(cell);
     }
