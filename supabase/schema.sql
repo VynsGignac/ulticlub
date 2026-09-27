@@ -378,3 +378,42 @@ create policy "Les encadrants creent un evenement d'equipe"
       where t.id = team_events.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
     )
   );
+
+-- --- Selections d'equipe -----------------------------------------
+-- Une selection appartient a une equipe : pour l'instant juste une date limite de candidature et
+-- un commentaire libre. Utilisee plus tard dans l'onglet Saison -- pour l'instant, seule sa
+-- creation existe.
+
+create table if not exists public.team_selections (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams (id) on delete cascade,
+  date_limite_candidature date not null,
+  commentaire text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.team_selections enable row level security;
+
+drop policy if exists "Les membres du club lisent les selections d'equipe" on public.team_selections;
+create policy "Les membres du club lisent les selections d'equipe"
+  on public.team_selections for select
+  to authenticated
+  using (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_selections.team_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les encadrants creent une selection d'equipe" on public.team_selections;
+create policy "Les encadrants creent une selection d'equipe"
+  on public.team_selections for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.teams t
+      join public.club_members cm on cm.club_id = t.club_id
+      where t.id = team_selections.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    )
+  );

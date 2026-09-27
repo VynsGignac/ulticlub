@@ -1,8 +1,8 @@
 // ============================================================
 // Onglet de detail d'une equipe (ouvert en cliquant sur une equipe depuis "Equipes actuelles") :
-// liste des membres, ajout de membres, gestion des responsables parmi les membres actuels, et
-// creation d'evenement (voir js/event-create.js). Gestion des selections est un emplacement
-// reserve, pas encore implemente.
+// liste des membres, ajout de membres, gestion des responsables parmi les membres actuels,
+// creation d'evenement (voir js/event-create.js) et creation de selection (voir
+// js/selection-create.js).
 // ============================================================
 
 let currentTeamId = null;
@@ -150,15 +150,10 @@ async function renderManageManagers() {
   contentEl.appendChild(listEl);
 }
 
-function renderSelectionsPlaceholder() {
-  document.getElementById('team-detail-content').innerHTML =
-    '<p class="message">Gestion des sélections — à venir.</p>';
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('team-action-members').addEventListener('click', renderTeamMembersList);
   document.getElementById('team-action-add-members').addEventListener('click', renderAddMembersForm);
   document.getElementById('team-action-managers').addEventListener('click', renderManageManagers);
   document.getElementById('team-action-create-event').addEventListener('click', openEventCreate);
-  document.getElementById('team-action-selections').addEventListener('click', renderSelectionsPlaceholder);
+  document.getElementById('team-action-selections').addEventListener('click', openSelectionCreate);
 });
