@@ -12,8 +12,9 @@
 // - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
 //   en bas de l'ecran valide toutes les modifications en une fois.
 // - Communication : liste les publications du bureau (plus recente d'abord), cliquer sur l'une
-//   d'elles l'ouvre. "Nouvelle communication" permet d'en ecrire une, visible par tout le bureau
-//   du club une fois publiee (emplacement d'affichage futur pas encore defini).
+//   d'elles l'ouvre. "Nouvelle communication" permet d'en ecrire une (redaction reservee au
+//   bureau), visible par TOUS les membres du club une fois publiee (emplacement d'affichage futur
+//   en dehors de Gestion club pas encore defini).
 // Pas d'equivalent a "Gerer les selections" : ca n'a pas de sens a l'echelle du club entier.
 // ============================================================
 
