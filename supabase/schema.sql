@@ -100,23 +100,59 @@ create table if not exists public.club_members (
 );
 
 -- Statut administratif (onglet Tableau de bord > Administratif, lecture seule pour le membre) :
--- saisi par le bureau -- pas encore d'ecran pour le faire, seulement l'affichage pour l'instant.
+-- saisi par le bureau via l'onglet Gestion club.
 alter table public.club_members add column if not exists licence_a_jour boolean not null default false;
 alter table public.club_members add column if not exists dette numeric(10, 2) not null default 0;
 
+-- Un membre qui rejoint un club via la recherche part non valide (voir js/club.js) ; le createur
+-- d'un club est valide d'office. Le bureau confirme les nouveaux arrivants via "Valider membre"
+-- dans l'onglet Gestion club (voir js/club-management.js). Defaut a true pour ne pas invalider
+-- retroactivement les appartenances deja existantes sur un projet en cours.
+alter table public.club_members add column if not exists valide boolean not null default true;
+
 alter table public.club_members enable row level security;
 
+-- Un membre du bureau doit pouvoir voir tous les membres de son club (pas seulement lui-meme)
+-- pour les ecrans de l'onglet Gestion club (liste des membres, validation, roles).
 drop policy if exists "Les utilisateurs lisent leurs propres appartenances" on public.club_members;
-create policy "Les utilisateurs lisent leurs propres appartenances"
+drop policy if exists "Les membres du bureau lisent tous les membres de leur club" on public.club_members;
+create policy "Les membres du bureau lisent tous les membres de leur club"
   on public.club_members for select
   to authenticated
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.club_members bureau
+      where bureau.club_id = club_members.club_id
+        and bureau.user_id = auth.uid()
+        and bureau.role_membre_bureau = true
+    )
+  );
 
 drop policy if exists "Les utilisateurs rejoignent un club en leur nom" on public.club_members;
 create policy "Les utilisateurs rejoignent un club en leur nom"
   on public.club_members for insert
   to authenticated
   with check (auth.uid() = user_id);
+
+-- Un membre du bureau peut valider un nouvel arrivant et gerer les roles (encadrant, membre du
+-- bureau) de n'importe quel membre de son club -- voir l'onglet Gestion club.
+drop policy if exists "Les membres du bureau modifient les membres de leur club" on public.club_members;
+create policy "Les membres du bureau modifient les membres de leur club"
+  on public.club_members for update
+  to authenticated
+  using (exists (
+    select 1 from public.club_members bureau
+    where bureau.club_id = club_members.club_id
+      and bureau.user_id = auth.uid()
+      and bureau.role_membre_bureau = true
+  ))
+  with check (exists (
+    select 1 from public.club_members bureau
+    where bureau.club_id = club_members.club_id
+      and bureau.user_id = auth.uid()
+      and bureau.role_membre_bureau = true
+  ));
 
 drop policy if exists "Les utilisateurs quittent un club en leur nom" on public.club_members;
 create policy "Les utilisateurs quittent un club en leur nom"
@@ -420,5 +456,53 @@ create policy "Les encadrants creent une selection d'equipe"
       select 1 from public.teams t
       join public.club_members cm on cm.club_id = t.club_id
       where t.id = team_selections.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    )
+  );
+
+-- --- Evenements de club (onglet Gestion club, reserve au bureau) ------
+-- Equivalent de team_events mais a l'echelle de tout le club (pas une seule equipe) : visible par
+-- tous les membres du club dans leur calendrier (voir js/calendar.js).
+
+create table if not exists public.club_events (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  nom text not null,
+  date_debut date not null,
+  date_fin date not null,
+  heure_debut time not null,
+  heure_fin time not null,
+  lieu text not null,
+  commentaire text,
+  cyclique boolean not null default false,
+  date_derniere_occurrence date,
+  demande_confirmation boolean not null default false,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.club_events drop constraint if exists club_events_cyclique_check;
+alter table public.club_events add constraint club_events_cyclique_check
+  check (not cyclique or date_derniere_occurrence is not null);
+
+alter table public.club_events enable row level security;
+
+drop policy if exists "Les membres du club lisent les evenements du club" on public.club_events;
+create policy "Les membres du club lisent les evenements du club"
+  on public.club_events for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_events.club_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Le bureau cree un evenement de club" on public.club_events;
+create policy "Le bureau cree un evenement de club"
+  on public.club_events for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.club_members cm
+      where cm.club_id = club_events.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
     )
   );

@@ -60,20 +60,29 @@ function expandEventDates(evt) {
   return dates;
 }
 
+// Fusionne les evenements d'equipe (des equipes dont on est membre) et les evenements de club
+// (de tous les clubs dont on est membre, quel que soit le club actif).
 async function fetchEventDatesForCurrentUser() {
   const { data: { user } } = await client.auth.getUser();
 
-  const { data: memberships } = await client.from('team_members').select('team_id').eq('user_id', user.id);
-  const teamIds = (memberships || []).map((m) => m.team_id);
-  if (!teamIds.length) return new Set();
+  const [{ data: teamMemberships }, { data: clubMemberships }] = await Promise.all([
+    client.from('team_members').select('team_id').eq('user_id', user.id),
+    client.from('club_members').select('club_id').eq('user_id', user.id),
+  ]);
+  const teamIds = (teamMemberships || []).map((m) => m.team_id);
+  const clubIds = (clubMemberships || []).map((m) => m.club_id);
 
-  const { data: events } = await client
-    .from('team_events')
-    .select('date_debut, date_fin, cyclique, date_derniere_occurrence')
-    .in('team_id', teamIds);
+  const [teamEventsRes, clubEventsRes] = await Promise.all([
+    teamIds.length
+      ? client.from('team_events').select('date_debut, date_fin, cyclique, date_derniere_occurrence').in('team_id', teamIds)
+      : Promise.resolve({ data: [] }),
+    clubIds.length
+      ? client.from('club_events').select('date_debut, date_fin, cyclique, date_derniere_occurrence').in('club_id', clubIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const allDates = new Set();
-  for (const evt of events || []) {
+  for (const evt of [...(teamEventsRes.data || []), ...(clubEventsRes.data || [])]) {
     for (const isoDate of expandEventDates(evt)) allDates.add(isoDate);
   }
   return allDates;

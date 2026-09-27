@@ -83,9 +83,10 @@ async function joinClub(clubId) {
 
   const { data: { user } } = await client.auth.getUser();
 
+  // Part non valide : le bureau confirme l'adhesion via "Valider membre" dans Gestion club.
   const { error: memberError } = await client
     .from('club_members')
-    .insert({ user_id: user.id, club_id: clubId, role_encadrant: false, role_membre_bureau: false });
+    .insert({ user_id: user.id, club_id: clubId, role_encadrant: false, role_membre_bureau: false, valide: false });
 
   // 23505 = deja membre de ce club (contrainte unique user_id+club_id) : pas grave, on bascule
   // simplement dessus.
@@ -127,10 +128,11 @@ async function handleClubCreate(event) {
       return;
     }
 
-    // Le createur du club est membre du bureau et encadrant en plus de joueur, des la creation.
+    // Le createur du club est membre du bureau et encadrant en plus de joueur, des la creation,
+    // et deja valide (pas besoin de se confirmer lui-meme).
     const { error: memberError } = await client
       .from('club_members')
-      .insert({ user_id: user.id, club_id: club.id, role_encadrant: true, role_membre_bureau: true });
+      .insert({ user_id: user.id, club_id: club.id, role_encadrant: true, role_membre_bureau: true, valide: true });
     if (memberError) {
       setMessage(errorEl, 'Club créé, mais impossible de te rattacher au club.', true);
       return;

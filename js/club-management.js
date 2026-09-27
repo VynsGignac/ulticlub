@@ -1,0 +1,151 @@
+// ============================================================
+// Onglet Gestion club (reserve aux membres du bureau) : equivalent du detail d'equipe mais a
+// l'echelle de tout le club actif au lieu d'une seule equipe.
+// - Gerer membre (etait "Afficher la liste des membres") : liste tous les membres du club.
+// - Valider membre (etait "Ajouter des membres") : confirme les membres qui ont rejoint le club
+//   via la recherche (partis "non valides", voir js/club.js) -- pas d'ajout direct d'un nouvel
+//   utilisateur, juste la validation de ceux qui ont deja demande a rejoindre.
+// - Gerer les responsables : bascule le role encadrant parmi les membres du club.
+// - Ajouter membre du bureau : bascule le role membre du bureau parmi les membres du club.
+// - Creer un evenement : ouvre un onglet dedie (voir js/club-event-create.js), visible dans le
+//   calendrier de tout le club au lieu d'une seule equipe.
+// Pas d'equivalent a "Gerer les selections" : ca n'a pas de sens a l'echelle du club entier.
+// ============================================================
+
+let currentGestionClubId = null;
+let currentGestionClubNom = '';
+
+async function renderGestionClubTab() {
+  const { data: { user } } = await client.auth.getUser();
+  const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
+
+  currentGestionClubId = profile ? profile.active_club_id : null;
+  currentGestionClubNom = document.getElementById('app-club').textContent || '';
+
+  document.getElementById('club-detail-title').textContent = currentGestionClubNom;
+  document.getElementById('club-detail-content').innerHTML = '';
+}
+
+async function fetchPseudosByIdForClub(userIds) {
+  if (!userIds.length) return new Map();
+  const { data } = await client.from('profiles').select('id, pseudo').in('id', userIds);
+  return new Map((data || []).map((p) => [p.id, p.pseudo]));
+}
+
+async function renderClubMembersList() {
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: members } = await client
+    .from('club_members')
+    .select('user_id, role_encadrant, role_membre_bureau, valide')
+    .eq('club_id', currentGestionClubId);
+
+  if (!members || !members.length) {
+    contentEl.innerHTML = '<ul class="club-results"><li class="empty">Aucun membre pour l’instant.</li></ul>';
+    return;
+  }
+
+  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const member of members) {
+    const tags = [];
+    if (!member.valide) tags.push('non validé');
+    if (member.role_encadrant) tags.push('encadrant');
+    if (member.role_membre_bureau) tags.push('bureau');
+
+    const li = document.createElement('li');
+    li.textContent = (pseudoById.get(member.user_id) || 'Inconnu') + (tags.length ? ` (${tags.join(', ')})` : '');
+    li.classList.toggle('highlight', tags.length > 0);
+    listEl.appendChild(li);
+  }
+  contentEl.innerHTML = '';
+  contentEl.appendChild(listEl);
+}
+
+async function validateMember(userId) {
+  await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', userId);
+  renderValidateMembers();
+}
+
+async function renderValidateMembers() {
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: pending } = await client
+    .from('club_members')
+    .select('user_id')
+    .eq('club_id', currentGestionClubId)
+    .eq('valide', false);
+
+  if (!pending || !pending.length) {
+    contentEl.innerHTML = '<p class="message">Aucun membre en attente de validation.</p>';
+    return;
+  }
+
+  const pseudoById = await fetchPseudosByIdForClub(pending.map((m) => m.user_id));
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const member of pending) {
+    const li = document.createElement('li');
+    li.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+    li.addEventListener('click', () => validateMember(member.user_id));
+    listEl.appendChild(li);
+  }
+  contentEl.innerHTML = '';
+  contentEl.appendChild(listEl);
+}
+
+async function toggleClubRole(userId, field, isCurrentlyOn, rerender) {
+  await client.from('club_members').update({ [field]: !isCurrentlyOn }).eq('club_id', currentGestionClubId).eq('user_id', userId);
+  rerender();
+}
+
+async function renderClubRoleToggle(field, tagLabel, rerender) {
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: members } = await client
+    .from('club_members')
+    .select(`user_id, ${field}`)
+    .eq('club_id', currentGestionClubId);
+
+  if (!members || !members.length) {
+    contentEl.innerHTML = '<p class="message">Aucun membre pour l’instant.</p>';
+    return;
+  }
+
+  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const member of members) {
+    const isOn = !!member[field];
+    const li = document.createElement('li');
+    li.textContent = (pseudoById.get(member.user_id) || 'Inconnu') + (isOn ? ` (${tagLabel})` : '');
+    li.classList.toggle('highlight', isOn);
+    li.addEventListener('click', () => toggleClubRole(member.user_id, field, isOn, rerender));
+    listEl.appendChild(li);
+  }
+  contentEl.innerHTML = '';
+  contentEl.appendChild(listEl);
+}
+
+function renderManageClubEncadrants() {
+  renderClubRoleToggle('role_encadrant', 'encadrant', renderManageClubEncadrants);
+}
+
+function renderAddBureauMembers() {
+  renderClubRoleToggle('role_membre_bureau', 'bureau', renderAddBureauMembers);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('club-action-members').addEventListener('click', renderClubMembersList);
+  document.getElementById('club-action-validate-members').addEventListener('click', renderValidateMembers);
+  document.getElementById('club-action-managers').addEventListener('click', renderManageClubEncadrants);
+  document.getElementById('club-action-create-event').addEventListener('click', openClubEventCreate);
+  document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);
+});

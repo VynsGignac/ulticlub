@@ -22,6 +22,8 @@ const CUSTOM_TAB_CONTAINERS = {
   'team-detail': { containerId: 'tab-content-team-detail', render: renderTeamDetailTab },
   'event-create': { containerId: 'tab-content-event-create', render: renderEventCreateTab },
   'selection-create': { containerId: 'tab-content-selection-create', render: renderSelectionCreateTab },
+  'gestion-club': { containerId: 'tab-content-gestion-club', render: renderGestionClubTab },
+  'club-event-create': { containerId: 'tab-content-club-event-create', render: renderClubEventCreateTab },
   profil: { containerId: 'tab-content-profil', render: renderProfilTab },
 };
 
