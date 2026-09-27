@@ -147,6 +147,29 @@
     max-width: 360px;
   }
 
+  .tab-content-team-detail {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .action-button {
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    color: #e8edf2;
+    text-align: left;
+    font-size: 0.95em;
+  }
+  .action-button:hover { border-color: #3b82f6; }
+  .team-detail-content {
+    width: 100%;
+    max-width: 360px;
+  }
+
   .tab-content-calendrier {
     flex: 1;
     overflow-y: auto;
@@ -507,6 +530,18 @@
       </div>
     </div>
 
+    <div id="tab-content-team-detail" class="tab-content-team-detail" style="display: none;">
+      <h2 id="team-detail-title"></h2>
+      <div class="team-detail-actions panel">
+        <button type="button" id="team-action-members" class="action-button">Afficher la liste des membres</button>
+        <button type="button" id="team-action-add-members" class="action-button">Ajouter des membres</button>
+        <button type="button" id="team-action-managers" class="action-button">Gérer les responsables</button>
+        <button type="button" id="team-action-create-event" class="action-button">Créer un événement</button>
+        <button type="button" id="team-action-selections" class="action-button">Gérer les sélections</button>
+      </div>
+      <div id="team-detail-content" class="team-detail-content"></div>
+    </div>
+
     <div id="tab-content-profil" class="tab-content-profil" style="display: none;">
       <form id="profil-form" class="panel">
         <h2>Mes informations</h2>
@@ -579,6 +614,7 @@
   <script src="js/profile.js"></script>
   <script src="js/calendar.js"></script>
   <script src="js/team-management.js"></script>
+  <script src="js/team-detail.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 

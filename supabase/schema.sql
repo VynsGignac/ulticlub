@@ -72,11 +72,8 @@ create policy "Les utilisateurs creent leur propre profil"
   to authenticated
   with check (auth.uid() = id);
 
-drop policy if exists "Les utilisateurs lisent leur propre profil" on public.profiles;
-create policy "Les utilisateurs lisent leur propre profil"
-  on public.profiles for select
-  to authenticated
-  using (auth.uid() = id);
+-- La policy de lecture est plus bas (apres club_members : elle a besoin de cette table pour
+-- determiner qui partage un club avec qui).
 
 drop policy if exists "Les utilisateurs modifient leur propre profil" on public.profiles;
 create policy "Les utilisateurs modifient leur propre profil"
@@ -144,6 +141,24 @@ end $$;
 alter table public.profiles add column if not exists active_club_id uuid references public.clubs (id);
 alter table public.profiles drop column if exists role_encadrant;
 alter table public.profiles drop column if exists role_membre_bureau;
+
+-- Un membre de club doit pouvoir voir le pseudo (et le reste du profil) de ses coequipiers pour
+-- les listes de membres/responsables d'equipe -- pas seulement le sien. Les cases "visible par
+-- les membres hors du bureau" (voir plus haut) ne sont pas encore appliquees ici : cette policy
+-- ouvre juste la lecture entre membres d'un meme club, la restriction fine viendra plus tard.
+drop policy if exists "Les utilisateurs lisent leur propre profil" on public.profiles;
+drop policy if exists "Les membres d'un meme club lisent les profils de ce club" on public.profiles;
+create policy "Les membres d'un meme club lisent les profils de ce club"
+  on public.profiles for select
+  to authenticated
+  using (
+    auth.uid() = id
+    or exists (
+      select 1 from public.club_members cm_self
+      join public.club_members cm_other on cm_other.club_id = cm_self.club_id
+      where cm_self.user_id = auth.uid() and cm_other.user_id = profiles.id
+    )
+  );
 
 -- --- Equipes (onglet Gestion equipe, reserve aux encadrants) ---
 -- Une equipe appartient a un seul club et se definit par 4 champs obligatoires (categorie,
@@ -254,15 +269,60 @@ create policy "Les membres du club lisent les responsables d'equipe"
     where t.id = team_managers.team_id and cm.user_id = auth.uid()
   ));
 
+-- Un encadrant peut designer n'importe quel membre du club comme responsable (pas seulement
+-- lui-meme) : necessaire pour l'onglet "Gerer les responsables" (voir js/team-detail.js), qui
+-- choisit parmi les membres actuels de l'equipe. Couvre aussi l'auto-affectation a la creation.
 drop policy if exists "Un encadrant s'ajoute comme responsable d'equipe" on public.team_managers;
-create policy "Un encadrant s'ajoute comme responsable d'equipe"
+drop policy if exists "Les encadrants gerent les responsables d'equipe (ajout)" on public.team_managers;
+create policy "Les encadrants gerent les responsables d'equipe (ajout)"
   on public.team_managers for insert
   to authenticated
-  with check (
-    user_id = auth.uid()
-    and exists (
-      select 1 from public.teams t
-      join public.club_members cm on cm.club_id = t.club_id
-      where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
-    )
-  );
+  with check (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+  ));
+
+drop policy if exists "Les encadrants gerent les responsables d'equipe (retrait)" on public.team_managers;
+create policy "Les encadrants gerent les responsables d'equipe (retrait)"
+  on public.team_managers for delete
+  to authenticated
+  using (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+  ));
+
+-- --- Membres d'une equipe (roster) -----------------------------
+-- Distinct des responsables ci-dessus : qui fait partie de l'equipe. Le createur d'une equipe y
+-- est ajoute automatiquement (voir js/team-management.js), les autres via "Ajouter des membres".
+
+create table if not exists public.team_members (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (team_id, user_id)
+);
+
+alter table public.team_members enable row level security;
+
+drop policy if exists "Les membres du club lisent les membres d'equipe" on public.team_members;
+create policy "Les membres du club lisent les membres d'equipe"
+  on public.team_members for select
+  to authenticated
+  using (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_members.team_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les encadrants ajoutent des membres a l'equipe" on public.team_members;
+create policy "Les encadrants ajoutent des membres a l'equipe"
+  on public.team_members for insert
+  to authenticated
+  with check (exists (
+    select 1 from public.teams t
+    join public.club_members cm on cm.club_id = t.club_id
+    where t.id = team_members.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+  ));

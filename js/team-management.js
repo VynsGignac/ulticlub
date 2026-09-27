@@ -63,13 +63,14 @@ async function renderEquipesActuelles() {
   const others = [];
   for (const team of teams) {
     const isMine = team.team_managers.some((m) => m.user_id === user.id);
-    (isMine ? mine : others).push({ nom: team.nom, isMine });
+    (isMine ? mine : others).push({ id: team.id, nom: team.nom, isMine });
   }
 
   for (const team of [...mine, ...others]) {
     const li = document.createElement('li');
     li.textContent = team.nom + (team.isMine ? ' (responsable)' : '');
     li.classList.toggle('highlight', team.isMine);
+    li.addEventListener('click', () => openTeamDetail(team.id, team.nom, profile.active_club_id));
     listEl.appendChild(li);
   }
 }
@@ -109,10 +110,15 @@ async function handleEquipeCreate(event) {
       return;
     }
 
+    // Le createur devient a la fois membre et responsable (les responsables se choisissent
+    // parmi les membres actuels, voir js/team-detail.js).
+    const { error: memberError } = await client
+      .from('team_members')
+      .insert({ team_id: team.id, user_id: user.id });
     const { error: managerError } = await client
       .from('team_managers')
       .insert({ team_id: team.id, user_id: user.id });
-    if (managerError) {
+    if (memberError || managerError) {
       setMessage(errorEl, 'Équipe créée, mais impossible de t’en attribuer la responsabilité.', true);
       return;
     }
