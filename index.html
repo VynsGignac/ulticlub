@@ -110,6 +110,71 @@
     color: #e8edf2;
   }
 
+  .tab-content-calendrier {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .calendrier-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .calendrier-header span {
+    font-weight: 600;
+    color: #e8edf2;
+    min-width: 140px;
+    text-align: center;
+  }
+  .calendrier-header button {
+    padding: 4px 14px;
+    font-size: 1.3em;
+    line-height: 1;
+  }
+  .calendrier-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .calendrier-weekday {
+    text-align: center;
+    font-size: 0.75em;
+    color: #8a97a4;
+    padding-bottom: 4px;
+  }
+  .calendrier-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    color: #e8edf2;
+    font-size: 0.9em;
+    box-sizing: border-box;
+  }
+  .calendrier-day.outside {
+    color: #4a5560;
+    background: transparent;
+    border-color: transparent;
+  }
+  .calendrier-day.today {
+    border-color: #3b82f6;
+    background: #1e2a3d;
+    font-weight: 700;
+  }
+
   h1 {
     margin: 0;
     font-size: 1.8em;
@@ -338,6 +403,15 @@
     <nav id="app-tabs" class="app-tabs"></nav>
     <div id="app-tab-content" class="app-tab-content"></div>
 
+    <div id="tab-content-calendrier" class="tab-content-calendrier" style="display: none;">
+      <div class="calendrier-header">
+        <button type="button" id="calendrier-prev" class="link">‹</button>
+        <span id="calendrier-label"></span>
+        <button type="button" id="calendrier-next" class="link">›</button>
+      </div>
+      <div id="calendrier-grid" class="calendrier-grid"></div>
+    </div>
+
     <div id="tab-content-profil" class="tab-content-profil" style="display: none;">
       <form id="profil-form" class="panel">
         <h2>Mes informations</h2>
@@ -408,6 +482,7 @@
   <script src="js/auth.js"></script>
   <script src="js/club.js"></script>
   <script src="js/profile.js"></script>
+  <script src="js/calendar.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 
