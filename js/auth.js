@@ -1,9 +1,7 @@
 // ============================================================
 // Authentification (connexion / creation de compte) via Supabase Auth + table profiles.
-// Le champ "profil" du menu de connexion est le pseudo choisi a l'inscription (pas l'email) :
-// on retrouve l'email associe via la fonction RPC email_for_pseudo (voir supabase/schema.sql,
-// necessaire car Supabase Auth authentifie par email, pas par pseudo), puis on se connecte
-// normalement aupres de Supabase avec cet email + le mot de passe saisi.
+// Connexion par email + mot de passe directement aupres de Supabase (le pseudo saisi a
+// l'inscription ne sert qu'a l'affichage, pas a la connexion).
 // ============================================================
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -32,26 +30,21 @@ function enterApp(pseudo) {
 async function handleLogin(event) {
   event.preventDefault();
   const submitButton = event.submitter;
-  const pseudo = document.getElementById('login-pseudo').value.trim();
+  const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
   setMessage(errorEl, '');
   submitButton.disabled = true;
 
   try {
-    const { data: email, error: lookupError } = await client.rpc('email_for_pseudo', { pseudo_input: pseudo });
-    if (lookupError || !email) {
-      setMessage(errorEl, 'Identifiants incorrects.', true);
-      return;
-    }
-
-    const { error: loginError } = await client.auth.signInWithPassword({ email, password });
+    const { data, error: loginError } = await client.auth.signInWithPassword({ email, password });
     if (loginError) {
       setMessage(errorEl, 'Identifiants incorrects.', true);
       return;
     }
 
-    enterApp(pseudo);
+    const profile = await fetchOwnProfile(data.user.id);
+    enterApp(profile ? profile.pseudo : email);
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, reessaie plus tard.', true);
   } finally {
@@ -66,7 +59,6 @@ async function handleSignup(event) {
   const pseudo = document.getElementById('signup-pseudo').value.trim();
   const password = document.getElementById('signup-password').value;
   const email = document.getElementById('signup-email').value.trim();
-  const telephone = document.getElementById('signup-telephone').value.trim();
   const errorEl = document.getElementById('signup-error');
   setMessage(errorEl, '');
   submitButton.disabled = true;
@@ -87,7 +79,7 @@ async function handleSignup(event) {
       return;
     }
 
-    const { error: profileError } = await client.from('profiles').insert({ id: userId, nom, pseudo, telephone });
+    const { error: profileError } = await client.from('profiles').insert({ id: userId, nom, pseudo });
     if (profileError) {
       const message = profileError.code === '23505'
         ? 'Ce pseudo est deja utilise.'
@@ -99,7 +91,7 @@ async function handleSignup(event) {
     await client.auth.signOut();
     document.getElementById('signup-form').reset();
     document.getElementById('login-form').reset();
-    document.getElementById('login-pseudo').value = pseudo;
+    document.getElementById('login-email').value = email;
     showView('view-login');
     setMessage(document.getElementById('login-info'), 'Compte cree, tu peux te connecter.');
   } catch {
@@ -116,10 +108,22 @@ async function handleLogout() {
   showView('view-login');
 }
 
+function togglePasswordVisibility(button) {
+  const input = document.getElementById(button.dataset.target);
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  button.textContent = showing ? '👁' : '🙈';
+  button.setAttribute('aria-label', showing ? 'Afficher le mot de passe' : 'Masquer le mot de passe');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('login-form').addEventListener('submit', handleLogin);
   document.getElementById('signup-form').addEventListener('submit', handleSignup);
   document.getElementById('logout-button').addEventListener('click', handleLogout);
+
+  document.querySelectorAll('.toggle-password').forEach((button) => {
+    button.addEventListener('click', () => togglePasswordVisibility(button));
+  });
 
   document.getElementById('show-signup').addEventListener('click', () => {
     setMessage(document.getElementById('signup-error'), '');

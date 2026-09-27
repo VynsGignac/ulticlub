@@ -84,6 +84,25 @@
   }
   input:focus { outline: 2px solid #3b82f6; }
 
+  .password-field {
+    position: relative;
+    display: flex;
+  }
+  .password-field input { flex: 1; padding-right: 44px; }
+  .toggle-password {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    padding: 6px 8px;
+    font-size: 1.1em;
+    line-height: 1;
+    color: #8a97a4;
+    cursor: pointer;
+  }
+
   button {
     font-size: 1em;
     padding: 12px;
@@ -128,12 +147,15 @@
     <h1>UltiClub</h1>
     <form id="login-form">
       <label>
-        Profil
-        <input id="login-pseudo" type="text" autocomplete="username" required>
+        Adresse mail
+        <input id="login-email" type="email" autocomplete="email" required>
       </label>
       <label>
         Mot de passe
-        <input id="login-password" type="password" autocomplete="current-password" required>
+        <div class="password-field">
+          <input id="login-password" type="password" autocomplete="current-password" required>
+          <button type="button" class="toggle-password" data-target="login-password" aria-label="Afficher le mot de passe">👁</button>
+        </div>
       </label>
       <p id="login-info" class="message"></p>
       <p id="login-error" class="message error"></p>
@@ -155,15 +177,14 @@
       </label>
       <label>
         Mot de passe
-        <input id="signup-password" type="password" autocomplete="new-password" minlength="6" required>
+        <div class="password-field">
+          <input id="signup-password" type="password" autocomplete="new-password" minlength="6" required>
+          <button type="button" class="toggle-password" data-target="signup-password" aria-label="Afficher le mot de passe">👁</button>
+        </div>
       </label>
       <label>
         Adresse mail
         <input id="signup-email" type="email" autocomplete="email" required>
-      </label>
-      <label>
-        Numéro de téléphone
-        <input id="signup-telephone" type="tel" autocomplete="tel" required>
       </label>
       <p id="signup-error" class="message error"></p>
       <button type="submit">Créer le compte</button>
