@@ -330,9 +330,8 @@ create policy "Les encadrants ajoutent des membres a l'equipe"
 -- --- Evenements d'equipe ----------------------------------------
 -- Un evenement appartient a une equipe. Cyclique = hebdomadaire ; dans ce cas la date de derniere
 -- occurrence est obligatoire (verifie aussi cote base, pas seulement cote app). "demande
--- confirmation" ne pilote encore aucune logique -- son usage sera defini plus tard. L'affichage
--- des evenements (calendrier, etc.) n'est pas encore implemente : pour l'instant, seule leur
--- creation existe.
+-- confirmation" ne pilote encore aucune logique -- son usage sera defini plus tard. Affiche comme
+-- un point dans l'onglet Calendrier de chaque membre de l'equipe (voir js/calendar.js).
 
 create table if not exists public.team_events (
   id uuid primary key default gen_random_uuid(),
