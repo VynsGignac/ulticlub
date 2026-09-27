@@ -9,7 +9,10 @@ async function renderProfilTab() {
 
   const { data: profile } = await client
     .from('profiles')
-    .select('pseudo, nom, prenom, telephone, adresse, date_naissance, active_club_id')
+    .select(`
+      pseudo, nom, prenom, telephone, adresse, date_naissance, active_club_id,
+      visible_email, visible_telephone, visible_adresse, visible_date_naissance
+    `)
     .eq('id', user.id)
     .single();
 
@@ -18,17 +21,27 @@ async function renderProfilTab() {
     .select('club_id, clubs (nom)')
     .eq('user_id', user.id);
 
-  populateProfilForm(profile || {});
+  populateProfilForm(profile || {}, user.email);
   renderClubMemberships(profile || {}, memberships || []);
 }
 
-function populateProfilForm(profile) {
+// Les cases "visible par les membres hors du bureau" ne pilotent encore aucune logique
+// d'affichage reelle (demande explicite : juste les capturer pour l'instant, la visibilite en
+// elle-meme viendra plus tard) -- seule leur valeur est enregistree.
+function populateProfilForm(profile, email) {
   document.getElementById('profil-pseudo').value = profile.pseudo || '';
   document.getElementById('profil-prenom').value = profile.prenom || '';
   document.getElementById('profil-nom').value = profile.nom || '';
+  document.getElementById('profil-email').value = email || '';
   document.getElementById('profil-telephone').value = profile.telephone || '';
   document.getElementById('profil-adresse').value = profile.adresse || '';
   document.getElementById('profil-date-naissance').value = profile.date_naissance || '';
+
+  document.getElementById('profil-email-visible').checked = profile.visible_email !== false;
+  document.getElementById('profil-telephone-visible').checked = profile.visible_telephone !== false;
+  document.getElementById('profil-adresse-visible').checked = profile.visible_adresse !== false;
+  document.getElementById('profil-date-naissance-visible').checked = profile.visible_date_naissance !== false;
+
   setMessage(document.getElementById('profil-info'), '');
   setMessage(document.getElementById('profil-error'), '');
 }
@@ -123,6 +136,10 @@ async function handleProfilSave(event) {
     telephone: document.getElementById('profil-telephone').value.trim() || null,
     adresse: document.getElementById('profil-adresse').value.trim() || null,
     date_naissance: document.getElementById('profil-date-naissance').value || null,
+    visible_email: document.getElementById('profil-email-visible').checked,
+    visible_telephone: document.getElementById('profil-telephone-visible').checked,
+    visible_adresse: document.getElementById('profil-adresse-visible').checked,
+    visible_date_naissance: document.getElementById('profil-date-naissance-visible').checked,
   };
 
   try {

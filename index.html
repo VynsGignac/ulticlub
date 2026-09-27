@@ -165,7 +165,7 @@
     gap: 4px;
   }
 
-  input {
+  input:not([type="checkbox"]) {
     font-size: 1em;
     padding: 10px 12px;
     border-radius: 8px;
@@ -175,7 +175,23 @@
     box-sizing: border-box;
     touch-action: manipulation;
   }
-  input:focus { outline: 2px solid #3b82f6; }
+  input:not([type="checkbox"]):focus { outline: 2px solid #3b82f6; }
+  input:not([type="checkbox"]):disabled { opacity: 0.6; }
+
+  .checkbox-label {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8em;
+    margin-top: -6px;
+  }
+  .checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    accent-color: #3b82f6;
+    cursor: pointer;
+  }
 
   .password-field {
     position: relative;
@@ -338,16 +354,36 @@
           <input id="profil-nom" type="text" required>
         </label>
         <label>
+          Adresse mail
+          <input id="profil-email" type="email" disabled>
+        </label>
+        <label class="checkbox-label">
+          <input id="profil-email-visible" type="checkbox" checked>
+          Visible par les membres hors du bureau
+        </label>
+        <label>
           Numéro de téléphone
           <input id="profil-telephone" type="tel">
+        </label>
+        <label class="checkbox-label">
+          <input id="profil-telephone-visible" type="checkbox" checked>
+          Visible par les membres hors du bureau
         </label>
         <label>
           Adresse
           <input id="profil-adresse" type="text">
         </label>
+        <label class="checkbox-label">
+          <input id="profil-adresse-visible" type="checkbox" checked>
+          Visible par les membres hors du bureau
+        </label>
         <label>
           Date de naissance
           <input id="profil-date-naissance" type="date">
+        </label>
+        <label class="checkbox-label">
+          <input id="profil-date-naissance-visible" type="checkbox" checked>
+          Visible par les membres hors du bureau
         </label>
         <p id="profil-info" class="message"></p>
         <p id="profil-error" class="message error"></p>

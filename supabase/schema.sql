@@ -53,6 +53,14 @@ alter table public.profiles add column if not exists telephone text;
 alter table public.profiles add column if not exists adresse text;
 alter table public.profiles add column if not exists date_naissance date;
 
+-- Case a cocher "visible par les membres hors du bureau" pour ces 4 champs (email, telephone,
+-- adresse, date de naissance) : cochee par defaut. Ne pilote encore aucune logique d'affichage
+-- reelle, seulement la preference de l'utilisateur -- la visibilite en elle-meme viendra plus tard.
+alter table public.profiles add column if not exists visible_email boolean not null default true;
+alter table public.profiles add column if not exists visible_telephone boolean not null default true;
+alter table public.profiles add column if not exists visible_adresse boolean not null default true;
+alter table public.profiles add column if not exists visible_date_naissance boolean not null default true;
+
 -- Ancien systeme (connexion par pseudo), abandonne au profit de la connexion par email.
 drop function if exists public.email_for_pseudo(text);
 
