@@ -31,6 +31,7 @@ function enterApp(pseudo, clubNom, roles) {
   document.getElementById('app-club').textContent = clubNom || '';
   renderTabs(roles || { encadrant: false, membreBureau: false });
   showView('view-app');
+  refreshCommunicationsBadge();
 }
 
 async function handleLogin(event) {

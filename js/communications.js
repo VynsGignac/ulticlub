@@ -24,6 +24,44 @@ async function fetchPseudosByIdForCommunications(userIds) {
   return new Map((data || []).map((p) => [p.id, p.pseudo]));
 }
 
+// Point rouge sur l'icone flottante : une communication du club actif est "non lue" si elle est
+// plus recente que le marqueur de l'utilisateur (voir communication_reads en base). Pas de marqueur
+// du tout = tout est considere non lu.
+async function refreshCommunicationsBadge() {
+  const badgeEl = document.getElementById('communications-fab-badge');
+  if (!badgeEl) return;
+
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) { badgeEl.style.display = 'none'; return; }
+
+  const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
+  const clubId = profile ? profile.active_club_id : null;
+  if (!clubId) { badgeEl.style.display = 'none'; return; }
+
+  const { data: readRow } = await client
+    .from('communication_reads')
+    .select('last_read_at')
+    .eq('user_id', user.id)
+    .eq('club_id', clubId)
+    .maybeSingle();
+  const lastReadAt = readRow ? readRow.last_read_at : '1970-01-01T00:00:00Z';
+
+  const { count } = await client
+    .from('club_communications')
+    .select('id', { count: 'exact', head: true })
+    .eq('club_id', clubId)
+    .gt('created_at', lastReadAt);
+
+  badgeEl.style.display = count ? '' : 'none';
+}
+
+async function markCommunicationsRead(userId, clubId) {
+  await client.from('communication_reads').upsert(
+    { user_id: userId, club_id: clubId, last_read_at: new Date().toISOString() },
+    { onConflict: 'user_id,club_id' },
+  );
+}
+
 async function renderCommunicationsTab() {
   const { data: { user } } = await client.auth.getUser();
   const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
@@ -36,6 +74,11 @@ async function renderCommunicationsTab() {
     .eq('club_id', currentCommunicationsClubId)
     .single();
   isCurrentUserClubBureau = !!(membership && membership.role_membre_bureau);
+
+  if (currentCommunicationsClubId) {
+    await markCommunicationsRead(user.id, currentCommunicationsClubId);
+    await refreshCommunicationsBadge();
+  }
 
   await renderCommunicationsList();
 }

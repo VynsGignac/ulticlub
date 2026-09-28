@@ -335,6 +335,16 @@
     z-index: 50;
     padding: 0;
   }
+  .fab-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 2px solid #10151a;
+  }
 
   .tab-content-communications {
     flex: 1;
@@ -868,7 +878,10 @@
       <div id="communications-content" class="team-detail-content"></div>
     </div>
 
-    <button type="button" id="communications-fab" class="floating-fab" aria-label="Communications">💬</button>
+    <button type="button" id="communications-fab" class="floating-fab" aria-label="Communications">
+      ✉️
+      <span id="communications-fab-badge" class="fab-badge" style="display: none;"></span>
+    </button>
   </div>
 
   <span id="version"></span>

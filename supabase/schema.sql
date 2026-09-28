@@ -553,3 +553,35 @@ create policy "Le bureau cree une communication de club"
       where cm.club_id = club_communications.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
     )
   );
+
+-- Marqueur "derniere lecture des communications" par utilisateur et par club : sert uniquement au
+-- point rouge de l'icone flottante (une communication est "non lue" si elle est plus recente que ce
+-- marqueur). Mis a jour (upsert) des que l'utilisateur ouvre l'ecran Communications -- voir
+-- js/communications.js.
+create table if not exists public.communication_reads (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (user_id, club_id)
+);
+
+alter table public.communication_reads enable row level security;
+
+drop policy if exists "Les utilisateurs lisent leur marqueur de lecture" on public.communication_reads;
+create policy "Les utilisateurs lisent leur marqueur de lecture"
+  on public.communication_reads for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Les utilisateurs creent leur marqueur de lecture" on public.communication_reads;
+create policy "Les utilisateurs creent leur marqueur de lecture"
+  on public.communication_reads for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Les utilisateurs modifient leur marqueur de lecture" on public.communication_reads;
+create policy "Les utilisateurs modifient leur marqueur de lecture"
+  on public.communication_reads for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
