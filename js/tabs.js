@@ -17,6 +17,7 @@ const TABS = [
 
 const CUSTOM_TAB_CONTAINERS = {
   calendrier: { containerId: 'tab-content-calendrier', render: renderCalendrierTab },
+  saison: { containerId: 'tab-content-saison', render: renderSaisonTab },
   'gestion-equipe': { containerId: 'tab-content-gestion-equipe', render: renderGestionEquipeTab },
   'team-detail': { containerId: 'tab-content-team-detail', render: renderTeamDetailTab },
   'event-create': { containerId: 'tab-content-event-create', render: renderEventCreateTab },
