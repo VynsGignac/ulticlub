@@ -7,12 +7,12 @@
 // ============================================================
 
 const TABS = [
+  { id: 'profil', label: 'Tableau de bord' },
   { id: 'calendrier', label: 'Calendrier' },
   { id: 'saison', label: 'Saison' },
   { id: 'vie-club', label: 'Vie de club' },
   { id: 'gestion-equipe', label: 'Gestion équipe', requires: 'encadrant' },
   { id: 'gestion-club', label: 'Gestion club', requires: 'membreBureau' },
-  { id: 'profil', label: 'Tableau de bord' },
 ];
 
 const CUSTOM_TAB_CONTAINERS = {
@@ -48,6 +48,7 @@ function selectTab(tabId) {
   // JS mais visible a l'ecran par-dessus tout le reste).
   if (tabId !== 'gestion-club') hideClubDebtSaveButton();
   document.getElementById('communications-fab').style.display = tabId === 'communications' ? 'none' : '';
+  closeModal();
 
   const custom = CUSTOM_TAB_CONTAINERS[tabId];
   document.getElementById('app-tab-content').style.display = custom ? 'none' : '';
@@ -79,5 +80,8 @@ function renderTabs(roles) {
     tabsEl.appendChild(button);
   }
 
-  if (visible.length) selectTab(visible[0].id);
+  // Tableau de bord est place en premier dans la barre d'onglets (a gauche), mais Calendrier reste
+  // l'ecran affiche par defaut a l'entree dans l'app.
+  const defaultTab = visible.find((t) => t.id === 'calendrier') || visible[0];
+  if (defaultTab) selectTab(defaultTab.id);
 }

@@ -1,6 +1,8 @@
 // ============================================================
 // Onglet Gestion club (reserve aux membres du bureau) : equivalent du detail d'equipe mais a
-// l'echelle de tout le club actif au lieu d'une seule equipe.
+// l'echelle de tout le club actif au lieu d'une seule equipe. Chaque action ouvre son contenu dans
+// la fenetre modale partagee (voir js/modal.js) plutot que sous les boutons -- plus visible et plus
+// pratique a faire defiler sur telephone qu'un contenu pousse en bas de l'ecran.
 // - Gerer membre (etait "Afficher la liste des membres") : liste tous les membres du club.
 // - Valider membre (etait "Ajouter des membres") : confirme les membres qui ont rejoint le club
 //   via la recherche (partis "non valides", voir js/club.js) -- pas d'ajout direct d'un nouvel
@@ -10,7 +12,8 @@
 // - Creer un evenement : ouvre un onglet dedie (voir js/club-event-create.js), visible dans le
 //   calendrier de tout le club au lieu d'une seule equipe.
 // - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
-//   en bas de l'ecran valide toutes les modifications en une fois.
+//   en bas de l'ecran valide toutes les modifications en une fois (reste visible par-dessus la
+//   fenetre modale, voir son z-index dans index.html).
 // - Valider licence : liste tous les membres avec une case a cocher "licence a jour", modifiable
 //   immediatement au clic (pas de bouton de sauvegarde, contrairement a la dette).
 // - Creer une equipe : la creation d'equipe est cote bureau (pas encadrant) -- le bureau choisit
@@ -35,7 +38,6 @@ async function renderGestionClubTab() {
   currentGestionClubNom = document.getElementById('app-club').textContent || '';
 
   document.getElementById('club-detail-title').textContent = currentGestionClubNom;
-  document.getElementById('club-detail-content').innerHTML = '';
   hideClubDebtSaveButton();
 }
 
@@ -47,8 +49,7 @@ async function fetchPseudosByIdForClub(userIds) {
 
 async function renderClubMembersList() {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Membres du club');
 
   const { data: members } = await client
     .from('club_members')
@@ -87,8 +88,7 @@ async function validateMember(userId) {
 
 async function renderValidateMembers() {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Valider membre');
 
   const { data: pending } = await client
     .from('club_members')
@@ -120,10 +120,9 @@ async function toggleClubRole(userId, field, isCurrentlyOn, rerender) {
   rerender();
 }
 
-async function renderClubRoleToggle(field, tagLabel, rerender) {
+async function renderClubRoleToggle(title, field, tagLabel, rerender) {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal(title);
 
   const { data: members } = await client
     .from('club_members')
@@ -153,17 +152,16 @@ async function renderClubRoleToggle(field, tagLabel, rerender) {
 }
 
 function renderManageClubEncadrants() {
-  renderClubRoleToggle('role_encadrant', 'encadrant', renderManageClubEncadrants);
+  renderClubRoleToggle('Gérer les responsables', 'role_encadrant', 'encadrant', renderManageClubEncadrants);
 }
 
 function renderAddBureauMembers() {
-  renderClubRoleToggle('role_membre_bureau', 'bureau', renderAddBureauMembers);
+  renderClubRoleToggle('Ajouter membre du bureau', 'role_membre_bureau', 'bureau', renderAddBureauMembers);
 }
 
 async function renderClubManageDebt() {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Gérer dette');
 
   const { data: members } = await client
     .from('club_members')
@@ -203,7 +201,7 @@ async function renderClubManageDebt() {
 
 async function saveClubDebts() {
   const saveButton = document.getElementById('club-debt-save-button');
-  const inputs = document.querySelectorAll('#club-detail-content .debt-row input');
+  const inputs = document.querySelectorAll('#app-modal-body .debt-row input');
   saveButton.disabled = true;
 
   await Promise.all(Array.from(inputs).map((input) => client
@@ -226,8 +224,7 @@ async function toggleMemberLicence(userId, isCurrentlyOn) {
 // de validation groupee, la valeur est un simple booleen.
 async function renderClubValidateLicence() {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Valider licence');
 
   const { data: members } = await client
     .from('club_members')
@@ -272,8 +269,7 @@ async function renderClubValidateLicence() {
 // devient responsable.
 async function renderClubTeamCreate() {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Créer une équipe');
 
   const { data: members } = await client
     .from('club_members')
@@ -403,8 +399,9 @@ async function handleClubTeamCreate(event) {
 
     document.getElementById('club-team-create-form').reset();
     setMessage(infoEl, 'Équipe créée.');
-  } catch {
-    setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
+  } catch (err) {
+    console.error('handleClubTeamCreate: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);
   } finally {
     submitButton.disabled = false;
   }
@@ -414,8 +411,7 @@ async function handleClubTeamCreate(event) {
 // confirme sa presence (uniquement si "demander confirmation" est coche pour cet evenement).
 async function renderClubEventsList() {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Événements du club');
 
   const { data: events } = await client
     .from('club_events')
@@ -443,15 +439,10 @@ async function renderClubEventsList() {
 
 async function renderClubEventDetail(evt) {
   hideClubDebtSaveButton();
-  const contentEl = document.getElementById('club-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal(evt.nom);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
-
-  const title = document.createElement('h2');
-  title.textContent = evt.nom;
-  wrapper.appendChild(title);
 
   const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
   const meta = document.createElement('p');

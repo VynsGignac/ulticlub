@@ -2,7 +2,9 @@
 // Onglet de detail d'une equipe (ouvert en cliquant sur une equipe depuis "Equipes actuelles") :
 // liste des membres, ajout de membres, gestion des responsables parmi les membres actuels,
 // creation d'evenement (voir js/event-create.js) et creation de selection (voir
-// js/selection-create.js).
+// js/selection-create.js). Chaque action ouvre son contenu dans la fenetre modale partagee (voir
+// js/modal.js) plutot que sous les boutons -- plus visible et plus pratique a faire defiler sur
+// telephone qu'un contenu pousse en bas de l'ecran.
 // ============================================================
 
 let currentTeamId = null;
@@ -32,7 +34,6 @@ function openTeamDetail(teamId, teamNom, clubId) {
 
 function renderTeamDetailTab() {
   document.getElementById('team-detail-title').textContent = currentTeamNom;
-  document.getElementById('team-detail-content').innerHTML = '';
 }
 
 async function fetchPseudosById(userIds) {
@@ -42,8 +43,7 @@ async function fetchPseudosById(userIds) {
 }
 
 async function renderTeamMembersList() {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Membres de l’équipe');
 
   const [{ data: members }, { data: managers }] = await Promise.all([
     client.from('team_members').select('user_id').eq('team_id', currentTeamId),
@@ -79,8 +79,7 @@ async function addTeamMember(userId) {
 }
 
 async function renderAddMembersForm() {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Ajouter des membres');
 
   const [{ data: clubMembers }, { data: teamMembers }] = await Promise.all([
     client.from('club_members').select('user_id').eq('club_id', currentTeamClubId),
@@ -120,8 +119,7 @@ async function toggleTeamManager(userId, isCurrentlyManager) {
 
 // Le choix des responsables se fait parmi les membres actuels de l'equipe uniquement.
 async function renderManageManagers() {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Gérer les responsables');
 
   const [{ data: members }, { data: managers }] = await Promise.all([
     client.from('team_members').select('user_id').eq('team_id', currentTeamId),
@@ -155,8 +153,7 @@ async function renderManageManagers() {
 // Liste des evenements de l'equipe (les plus proches d'abord) : cliquer sur l'un d'eux affiche qui
 // a confirme sa presence (uniquement si "demander confirmation" est coche pour cet evenement).
 async function renderTeamEventsList() {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Événements de l’équipe');
 
   const { data: events } = await client
     .from('team_events')
@@ -183,15 +180,10 @@ async function renderTeamEventsList() {
 }
 
 async function renderTeamEventDetail(evt) {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal(evt.nom);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
-
-  const title = document.createElement('h2');
-  title.textContent = evt.nom;
-  wrapper.appendChild(title);
 
   const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
   const meta = document.createElement('p');
@@ -240,8 +232,7 @@ async function renderTeamEventDetail(evt) {
 // Liste des selections de l'equipe : "Nouvelle sélection" ouvre le formulaire de creation (voir
 // js/selection-create.js) ; cliquer sur une selection existante affiche la liste des candidats.
 async function renderTeamSelectionsList() {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const contentEl = showModal('Sélections de l’équipe');
 
   const { data: selections } = await client
     .from('team_selections')
@@ -279,8 +270,8 @@ async function renderTeamSelectionsList() {
 }
 
 async function renderTeamSelectionDetail(sel) {
-  const contentEl = document.getElementById('team-detail-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const dateLabel = new Date(`${sel.date_limite_candidature}T00:00:00`).toLocaleDateString('fr-FR');
+  const contentEl = showModal(`Candidature avant le ${dateLabel}`);
 
   const { data: candidatures } = await client
     .from('team_selection_candidatures')
@@ -291,11 +282,6 @@ async function renderTeamSelectionDetail(sel) {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
-
-  const dateLabel = new Date(`${sel.date_limite_candidature}T00:00:00`).toLocaleDateString('fr-FR');
-  const title = document.createElement('h2');
-  title.textContent = `Candidature avant le ${dateLabel}`;
-  wrapper.appendChild(title);
 
   if (sel.commentaire) {
     const comment = document.createElement('p');

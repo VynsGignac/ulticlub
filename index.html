@@ -216,7 +216,7 @@
     border-radius: 999px;
     border: none;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
-    z-index: 50;
+    z-index: 95;
   }
 
   .communication-body {
@@ -331,6 +331,54 @@
     max-width: 360px;
   }
   .event-detail-item { cursor: default; }
+
+  .app-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 90;
+  }
+  .app-modal-panel {
+    background: #161c25;
+    width: 100%;
+    max-width: 480px;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+  }
+  .app-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 12px 16px 20px;
+    border-bottom: 1px solid #1f2731;
+    flex: 0 0 auto;
+  }
+  .app-modal-header h2 {
+    margin: 0;
+    font-size: 1.1em;
+    text-align: left;
+  }
+  .app-modal-close {
+    background: transparent;
+    border: none;
+    color: #8a97a4;
+    font-size: 1.3em;
+    line-height: 1;
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+  .app-modal-body {
+    padding: 16px 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
 
   .floating-fab {
     position: fixed;
@@ -637,7 +685,6 @@
         <button type="button" id="team-action-view-events" class="action-button">Voir les événements</button>
         <button type="button" id="team-action-selections" class="action-button">Gérer les sélections</button>
       </div>
-      <div id="team-detail-content" class="team-detail-content"></div>
     </div>
 
     <div id="tab-content-event-create" class="tab-content-event-create" style="display: none;">
@@ -722,7 +769,6 @@
         <button type="button" id="club-action-validate-licence" class="action-button">Valider licence</button>
         <button type="button" id="club-action-communication" class="action-button">Communication</button>
       </div>
-      <div id="club-detail-content" class="team-detail-content"></div>
       <button type="button" id="club-debt-save-button" class="floating-save-button" style="display: none;">Valider</button>
     </div>
 
@@ -871,6 +917,16 @@
       ✉️
       <span id="communications-fab-badge" class="fab-badge" style="display: none;"></span>
     </button>
+
+    <div id="app-modal-overlay" class="app-modal-overlay" style="display: none;">
+      <div class="app-modal-panel">
+        <div class="app-modal-header">
+          <h2 id="app-modal-title"></h2>
+          <button type="button" id="app-modal-close" class="app-modal-close" aria-label="Fermer">✕</button>
+        </div>
+        <div id="app-modal-body" class="app-modal-body"></div>
+      </div>
+    </div>
   </div>
 
   <span id="version"></span>
@@ -883,6 +939,7 @@
   <script src="js/profile.js"></script>
   <script src="js/calendar.js"></script>
   <script src="js/saison.js"></script>
+  <script src="js/modal.js"></script>
   <script src="js/team-management.js"></script>
   <script src="js/team-detail.js"></script>
   <script src="js/event-create.js"></script>
