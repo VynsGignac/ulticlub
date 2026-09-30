@@ -81,29 +81,36 @@ async function joinClub(clubId) {
   const errorEl = document.getElementById('club-select-error');
   setMessage(errorEl, '');
 
-  const { data: { user } } = await client.auth.getUser();
+  try {
+    const { data: { user } } = await client.auth.getUser();
 
-  // Part non valide : le bureau confirme l'adhesion via "Valider membre" dans Gestion club.
-  const { error: memberError } = await client
-    .from('club_members')
-    .insert({ user_id: user.id, club_id: clubId, role_encadrant: false, role_membre_bureau: false, valide: false });
+    // Part non valide : le bureau confirme l'adhesion via "Valider membre" dans Gestion club.
+    const { error: memberError } = await client
+      .from('club_members')
+      .insert({ user_id: user.id, club_id: clubId, role_encadrant: false, role_membre_bureau: false, valide: false });
 
-  // 23505 = deja membre de ce club (contrainte unique user_id+club_id) : pas grave, on bascule
-  // simplement dessus.
-  if (memberError && memberError.code !== '23505') {
-    console.error('joinClub: echec insertion club_members', memberError);
-    setMessage(errorEl, `Impossible de rejoindre ce club, réessaie. (${memberError.message || memberError.code})`, true);
-    return;
+    // 23505 = deja membre de ce club (contrainte unique user_id+club_id) : pas grave, on bascule
+    // simplement dessus.
+    if (memberError && memberError.code !== '23505') {
+      console.error('joinClub: echec insertion club_members', memberError);
+      setMessage(errorEl, `Impossible de rejoindre ce club, réessaie. (${memberError.message || memberError.code})`, true);
+      return;
+    }
+
+    const { error: profileError } = await client.from('profiles').update({ active_club_id: clubId }).eq('id', user.id);
+    if (profileError) {
+      console.error('joinClub: echec mise a jour active_club_id', profileError);
+      setMessage(errorEl, `Impossible de rejoindre ce club, réessaie. (${profileError.message || profileError.code})`, true);
+      return;
+    }
+
+    await routeAfterLogin(user.id, currentPseudo);
+  } catch (err) {
+    // Avant ce catch, un fetch qui echoue (reseau coupe, requete bloquee...) faisait echouer cette
+    // fonction en silence -- aucun message, aucune navigation, l'ecran restait fige sans indice.
+    console.error('joinClub: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);
   }
-
-  const { error: profileError } = await client.from('profiles').update({ active_club_id: clubId }).eq('id', user.id);
-  if (profileError) {
-    console.error('joinClub: echec mise a jour active_club_id', profileError);
-    setMessage(errorEl, `Impossible de rejoindre ce club, réessaie. (${profileError.message || profileError.code})`, true);
-    return;
-  }
-
-  await routeAfterLogin(user.id, currentPseudo);
 }
 
 async function handleClubCreate(event) {
@@ -150,8 +157,9 @@ async function handleClubCreate(event) {
 
     document.getElementById('club-create-form').reset();
     await routeAfterLogin(user.id, currentPseudo);
-  } catch {
-    setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
+  } catch (err) {
+    console.error('handleClubCreate: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);
   } finally {
     submitButton.disabled = false;
   }

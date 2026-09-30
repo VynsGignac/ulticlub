@@ -55,8 +55,9 @@ async function handleLogin(event) {
     client.from('profiles').update({ email }).eq('id', data.user.id);
 
     await routeAfterLogin(data.user.id, email);
-  } catch {
-    setMessage(errorEl, 'Connexion au serveur impossible, reessaie plus tard.', true);
+  } catch (err) {
+    console.error('handleLogin: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, reessaie plus tard. (${err.name}: ${err.message})`, true);
   } finally {
     submitButton.disabled = false;
   }
@@ -104,8 +105,9 @@ async function handleSignup(event) {
     document.getElementById('login-email').value = email;
     showView('view-login');
     setMessage(document.getElementById('login-info'), 'Compte cree, tu peux te connecter.');
-  } catch {
-    setMessage(errorEl, 'Connexion au serveur impossible, reessaie plus tard.', true);
+  } catch (err) {
+    console.error('handleSignup: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, reessaie plus tard. (${err.name}: ${err.message})`, true);
   } finally {
     submitButton.disabled = false;
   }
