@@ -212,11 +212,98 @@ async function saveClubDebts() {
   setTimeout(() => { saveButton.textContent = 'Valider'; }, 1500);
 }
 
+// Liste des evenements du club (les plus proches d'abord) : cliquer sur l'un d'eux affiche qui a
+// confirme sa presence (uniquement si "demander confirmation" est coche pour cet evenement).
+async function renderClubEventsList() {
+  hideClubDebtSaveButton();
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: events } = await client
+    .from('club_events')
+    .select('id, nom, date_debut, heure_debut, lieu, demande_confirmation')
+    .eq('club_id', currentGestionClubId)
+    .order('date_debut', { ascending: true });
+
+  if (!events || !events.length) {
+    contentEl.innerHTML = '<p class="message">Aucun événement pour l’instant.</p>';
+    return;
+  }
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const evt of events) {
+    const li = document.createElement('li');
+    const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
+    li.textContent = `${evt.nom} — ${dateLabel}`;
+    li.addEventListener('click', () => renderClubEventDetail(evt));
+    listEl.appendChild(li);
+  }
+  contentEl.innerHTML = '';
+  contentEl.appendChild(listEl);
+}
+
+async function renderClubEventDetail(evt) {
+  hideClubDebtSaveButton();
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+
+  const title = document.createElement('h2');
+  title.textContent = evt.nom;
+  wrapper.appendChild(title);
+
+  const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
+  const meta = document.createElement('p');
+  meta.className = 'communication-meta';
+  meta.textContent = [dateLabel, evt.heure_debut ? evt.heure_debut.slice(0, 5) : '', evt.lieu].filter(Boolean).join(' · ');
+  wrapper.appendChild(meta);
+
+  if (!evt.demande_confirmation) {
+    const note = document.createElement('p');
+    note.className = 'message';
+    note.textContent = 'Cet événement ne demande pas de confirmation de présence.';
+    wrapper.appendChild(note);
+  } else {
+    const [{ data: members }, { data: confirmations }] = await Promise.all([
+      client.from('club_members').select('user_id').eq('club_id', currentGestionClubId),
+      client.from('club_event_confirmations').select('user_id, present').eq('club_event_id', evt.id),
+    ]);
+    const pseudoById = await fetchPseudosByIdForClub((members || []).map((m) => m.user_id));
+    const responseByUser = new Map((confirmations || []).map((c) => [c.user_id, c.present]));
+
+    const listEl = document.createElement('ul');
+    listEl.className = 'club-results';
+    for (const member of members || []) {
+      const response = responseByUser.has(member.user_id) ? responseByUser.get(member.user_id) : null;
+      const label = response === true ? 'présent' : response === false ? 'absent' : 'en attente';
+      const li = document.createElement('li');
+      li.textContent = `${pseudoById.get(member.user_id) || 'Inconnu'} (${label})`;
+      li.classList.toggle('highlight', response === true);
+      listEl.appendChild(li);
+    }
+    wrapper.appendChild(listEl);
+  }
+
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = 'Retour';
+  backButton.addEventListener('click', renderClubEventsList);
+  wrapper.appendChild(backButton);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-members').addEventListener('click', renderClubMembersList);
   document.getElementById('club-action-validate-members').addEventListener('click', renderValidateMembers);
   document.getElementById('club-action-managers').addEventListener('click', renderManageClubEncadrants);
   document.getElementById('club-action-create-event').addEventListener('click', openClubEventCreate);
+  document.getElementById('club-action-view-events').addEventListener('click', renderClubEventsList);
   document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);
   document.getElementById('club-action-manage-debt').addEventListener('click', renderClubManageDebt);
   document.getElementById('club-debt-save-button').addEventListener('click', saveClubDebts);

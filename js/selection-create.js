@@ -1,21 +1,11 @@
 // ============================================================
-// Creation d'une selection pour une equipe (ouvert depuis "Gerer les selections" dans le detail
-// d'equipe -- voir js/team-detail.js). Utilisee plus tard dans l'onglet Saison ; ici on ne fait
-// que la creer.
+// Creation d'une selection pour une equipe (ouvert depuis le bouton "Nouvelle sélection" dans la
+// liste des selections -- voir renderTeamSelectionsList dans js/team-detail.js). Pas d'onglet dedie
+// dans #app-tabs : la vue s'affiche directement, avec un bouton "Retour" qui revient au detail de
+// l'equipe.
 // ============================================================
 
 function openSelectionCreate() {
-  let button = document.querySelector('#app-tabs .tab-button[data-tab="selection-create"]');
-  if (!button) {
-    button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tab-button';
-    button.dataset.tab = 'selection-create';
-    button.addEventListener('click', () => selectTab('selection-create'));
-    document.getElementById('app-tabs').appendChild(button);
-  }
-  button.textContent = 'Gérer les sélections';
-
   selectTab('selection-create');
 }
 
@@ -59,4 +49,5 @@ async function handleSelectionCreate(event) {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('selection-create-form').addEventListener('submit', handleSelectionCreate);
+  document.getElementById('selection-create-back').addEventListener('click', () => selectTab('team-detail'));
 });

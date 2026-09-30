@@ -172,6 +172,20 @@
     font-size: 0.95em;
   }
   .action-button:hover { border-color: #3b82f6; }
+  .action-button.highlight {
+    border-color: #3b82f6;
+    background: #1e2a3d;
+    color: #e8edf2;
+  }
+  .saison-item-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .saison-item-actions .action-button {
+    flex: 1;
+    text-align: center;
+  }
   .team-detail-content {
     width: 100%;
     max-width: 360px;
@@ -659,6 +673,7 @@
         <button type="button" id="team-action-add-members" class="action-button">Ajouter des membres</button>
         <button type="button" id="team-action-managers" class="action-button">Gérer les responsables</button>
         <button type="button" id="team-action-create-event" class="action-button">Créer un événement</button>
+        <button type="button" id="team-action-view-events" class="action-button">Voir les événements</button>
         <button type="button" id="team-action-selections" class="action-button">Gérer les sélections</button>
       </div>
       <div id="team-detail-content" class="team-detail-content"></div>
@@ -728,6 +743,7 @@
         <p id="selection-create-info" class="message"></p>
         <p id="selection-create-error" class="message error"></p>
         <button type="submit">Créer la sélection</button>
+        <button type="button" id="selection-create-back" class="link">Retour</button>
       </form>
     </div>
 
@@ -738,6 +754,7 @@
         <button type="button" id="club-action-validate-members" class="action-button">Valider membre</button>
         <button type="button" id="club-action-managers" class="action-button">Gérer les responsables</button>
         <button type="button" id="club-action-create-event" class="action-button">Créer un événement</button>
+        <button type="button" id="club-action-view-events" class="action-button">Voir les événements</button>
         <button type="button" id="club-action-add-bureau" class="action-button">Ajouter membre du bureau</button>
         <button type="button" id="club-action-manage-debt" class="action-button">Gérer dette</button>
         <button type="button" id="club-action-communication" class="action-button">Communication</button>

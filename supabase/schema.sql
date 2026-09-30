@@ -585,3 +585,129 @@ create policy "Les utilisateurs modifient leur marqueur de lecture"
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- --- Confirmations de presence et candidatures (option "demander confirmation", selections) ------
+-- Reponse d'un membre a un evenement ("present" = true/false) ou candidature a une selection
+-- (l'existence de la ligne suffit). Repondu/candidate depuis l'onglet Saison (voir js/saison.js) ;
+-- visible par les encadrants/le bureau depuis le detail d'equipe / Gestion club (voir
+-- js/team-detail.js et js/club-management.js, boutons "Voir les evenements"/"Gerer les selections").
+
+create table if not exists public.team_event_confirmations (
+  team_event_id uuid not null references public.team_events (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  present boolean not null,
+  responded_at timestamptz not null default now(),
+  primary key (team_event_id, user_id)
+);
+
+alter table public.team_event_confirmations enable row level security;
+
+drop policy if exists "Les membres du club lisent les confirmations d'evenement d'equipe" on public.team_event_confirmations;
+create policy "Les membres du club lisent les confirmations d'evenement d'equipe"
+  on public.team_event_confirmations for select
+  to authenticated
+  using (exists (
+    select 1 from public.team_events te
+    join public.teams t on t.id = te.team_id
+    join public.club_members cm on cm.club_id = t.club_id
+    where te.id = team_event_confirmations.team_event_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les membres de l'equipe repondent pour eux-memes (creation)" on public.team_event_confirmations;
+create policy "Les membres de l'equipe repondent pour eux-memes (creation)"
+  on public.team_event_confirmations for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.team_events te
+      join public.team_members tm on tm.team_id = te.team_id
+      where te.id = team_event_confirmations.team_event_id and tm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Les membres de l'equipe modifient leur propre reponse" on public.team_event_confirmations;
+create policy "Les membres de l'equipe modifient leur propre reponse"
+  on public.team_event_confirmations for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create table if not exists public.club_event_confirmations (
+  club_event_id uuid not null references public.club_events (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  present boolean not null,
+  responded_at timestamptz not null default now(),
+  primary key (club_event_id, user_id)
+);
+
+alter table public.club_event_confirmations enable row level security;
+
+drop policy if exists "Les membres du club lisent les confirmations d'evenement de club" on public.club_event_confirmations;
+create policy "Les membres du club lisent les confirmations d'evenement de club"
+  on public.club_event_confirmations for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_events ce
+    join public.club_members cm on cm.club_id = ce.club_id
+    where ce.id = club_event_confirmations.club_event_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les membres du club repondent pour eux-memes (creation)" on public.club_event_confirmations;
+create policy "Les membres du club repondent pour eux-memes (creation)"
+  on public.club_event_confirmations for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.club_events ce
+      join public.club_members cm on cm.club_id = ce.club_id
+      where ce.id = club_event_confirmations.club_event_id and cm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Les membres du club modifient leur propre reponse" on public.club_event_confirmations;
+create policy "Les membres du club modifient leur propre reponse"
+  on public.club_event_confirmations for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create table if not exists public.team_selection_candidatures (
+  selection_id uuid not null references public.team_selections (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (selection_id, user_id)
+);
+
+alter table public.team_selection_candidatures enable row level security;
+
+drop policy if exists "Les membres du club lisent les candidatures de selection" on public.team_selection_candidatures;
+create policy "Les membres du club lisent les candidatures de selection"
+  on public.team_selection_candidatures for select
+  to authenticated
+  using (exists (
+    select 1 from public.team_selections ts
+    join public.teams t on t.id = ts.team_id
+    join public.club_members cm on cm.club_id = t.club_id
+    where ts.id = team_selection_candidatures.selection_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les membres de l'equipe candidatent pour eux-memes" on public.team_selection_candidatures;
+create policy "Les membres de l'equipe candidatent pour eux-memes"
+  on public.team_selection_candidatures for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.team_selections ts
+      join public.team_members tm on tm.team_id = ts.team_id
+      where ts.id = team_selection_candidatures.selection_id and tm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Les membres retirent leur propre candidature" on public.team_selection_candidatures;
+create policy "Les membres retirent leur propre candidature"
+  on public.team_selection_candidatures for delete
+  to authenticated
+  using (user_id = auth.uid());
