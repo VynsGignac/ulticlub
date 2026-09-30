@@ -1,7 +1,8 @@
 // ============================================================
-// Onglet "Gestion equipe" (reserve aux encadrants du club actif) : liste des equipes du club,
-// celles dont le joueur est responsable d'abord, puis toutes les autres. La creation d'une equipe
-// se fait desormais cote bureau, depuis Gestion club (voir js/club-management.js).
+// Onglet "Equipe" (accessible a tous les membres du club) : liste des equipes du club, celles dont
+// le joueur est responsable d'abord, puis toutes les autres. La creation d'une equipe se fait cote
+// bureau, depuis Gestion club (voir js/club-management.js). Cliquer sur une equipe ouvre son detail
+// (voir js/team-detail.js) -- avec ou sans les outils de gestion selon qu'on en est responsable.
 // ============================================================
 
 function renderGestionEquipeTab() {

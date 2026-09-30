@@ -57,6 +57,17 @@
     border-bottom: 1px solid #1f2731;
     flex: 0 0 auto;
   }
+  .app-header-profile-button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    display: block;
+  }
+  .app-header-profile-button:active { opacity: 0.7; }
   .app-header-actions {
     display: flex;
     align-items: center;
@@ -665,10 +676,10 @@
 
   <div id="view-app" class="view view-app">
     <div class="app-header">
-      <div>
+      <button type="button" id="app-header-profile-button" class="app-header-profile-button">
         <strong id="app-pseudo"></strong>
         <span class="app-club-label">Club : <strong id="app-club"></strong></span>
-      </div>
+      </button>
       <div class="app-header-actions">
         <button type="button" id="help-menu-button" class="header-icon-button" aria-label="Aide">?</button>
         <button type="button" id="logout-button" class="link">Se déconnecter</button>
@@ -698,7 +709,7 @@
 
     <div id="tab-content-team-detail" class="tab-content-team-detail" style="display: none;">
       <h2 id="team-detail-title"></h2>
-      <div class="team-detail-actions panel">
+      <div id="team-detail-actions" class="team-detail-actions panel">
         <button type="button" id="team-action-members" class="action-button">Afficher la liste des membres</button>
         <button type="button" id="team-action-add-members" class="action-button">Ajouter des membres</button>
         <button type="button" id="team-action-managers" class="action-button">Gérer les responsables</button>
@@ -706,6 +717,7 @@
         <button type="button" id="team-action-view-events" class="action-button">Voir les événements</button>
         <button type="button" id="team-action-selections" class="action-button">Gérer les sélections</button>
       </div>
+      <div id="team-detail-readonly" class="team-detail-content" style="display: none;"></div>
     </div>
 
     <div id="tab-content-event-create" class="tab-content-event-create" style="display: none;">
@@ -781,7 +793,6 @@
       <div class="team-detail-actions panel">
         <button type="button" id="club-action-members" class="action-button">Gérer membre</button>
         <button type="button" id="club-action-validate-members" class="action-button">Valider membre</button>
-        <button type="button" id="club-action-managers" class="action-button">Gérer les responsables</button>
         <button type="button" id="club-action-create-team" class="action-button">Créer une équipe</button>
         <button type="button" id="club-action-create-event" class="action-button">Créer un événement</button>
         <button type="button" id="club-action-view-events" class="action-button">Voir les événements</button>

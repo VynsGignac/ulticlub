@@ -1,10 +1,14 @@
 // ============================================================
-// Onglet de detail d'une equipe (ouvert en cliquant sur une equipe depuis "Equipes actuelles") :
-// liste des membres, ajout de membres, gestion des responsables parmi les membres actuels,
-// creation d'evenement (voir js/event-create.js) et creation de selection (voir
-// js/selection-create.js). Chaque action ouvre son contenu dans la fenetre modale partagee (voir
-// js/modal.js) plutot que sous les boutons -- plus visible et plus pratique a faire defiler sur
-// telephone qu'un contenu pousse en bas de l'ecran.
+// Onglet de detail d'une equipe (ouvert en cliquant sur une equipe depuis l'onglet "Equipe",
+// accessible a tous les membres du club) : liste des membres, ajout de membres, gestion des
+// responsables parmi les membres actuels, creation d'evenement (voir js/event-create.js) et
+// creation de selection (voir js/selection-create.js). Chaque action ouvre son contenu dans la
+// fenetre modale partagee (voir js/modal.js) plutot que sous les boutons -- plus visible et plus
+// pratique a faire defiler sur telephone qu'un contenu pousse en bas de l'ecran.
+//
+// Seuls les responsables de CETTE equipe (table team_managers) voient le panneau d'actions
+// ci-dessous ; les autres membres du club n'ont qu'une liste en lecture seule (avec l'etiquette
+// "responsable"), voir renderTeamDetailTab.
 // ============================================================
 
 let currentTeamId = null;
@@ -32,8 +36,31 @@ function openTeamDetail(teamId, teamNom, clubId) {
   selectTab('team-detail');
 }
 
-function renderTeamDetailTab() {
+// Determine si le joueur connecte est responsable de CETTE equipe (pas juste encadrant du club en
+// general -- ce role club-wide n'existe plus, voir js/club-management.js) pour savoir si le
+// panneau d'actions ou la simple liste en lecture seule doit s'afficher.
+async function renderTeamDetailTab() {
   document.getElementById('team-detail-title').textContent = currentTeamNom;
+
+  const user = await requireUser();
+  const { data: manager } = await client
+    .from('team_managers')
+    .select('user_id')
+    .eq('team_id', currentTeamId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const isManager = !!manager;
+  document.getElementById('team-detail-actions').style.display = isManager ? '' : 'none';
+  const readonlyEl = document.getElementById('team-detail-readonly');
+  readonlyEl.style.display = isManager ? 'none' : '';
+
+  if (!isManager) {
+    readonlyEl.innerHTML = '<p class="message">Chargement...</p>';
+    const listEl = await buildTeamMembersListEl();
+    readonlyEl.innerHTML = '';
+    readonlyEl.appendChild(listEl);
+  }
 }
 
 async function fetchPseudosById(userIds) {
@@ -42,9 +69,9 @@ async function fetchPseudosById(userIds) {
   return new Map((data || []).map((p) => [p.id, p.pseudo]));
 }
 
-async function renderTeamMembersList() {
-  const contentEl = showModal('Membres de l’équipe');
-
+// Partagee entre la liste en lecture seule (membres non-responsables) et le bouton "Afficher la
+// liste des membres" du panneau d'actions (responsables) -- meme contenu, deux points d'entree.
+async function buildTeamMembersListEl() {
   const [{ data: members }, { data: managers }] = await Promise.all([
     client.from('team_members').select('user_id').eq('team_id', currentTeamId),
     client.from('team_managers').select('user_id').eq('team_id', currentTeamId),
@@ -52,8 +79,10 @@ async function renderTeamMembersList() {
   const managerIds = new Set((managers || []).map((m) => m.user_id));
 
   if (!members || !members.length) {
-    contentEl.innerHTML = '<ul class="club-results"><li class="empty">Aucun membre pour l’instant.</li></ul>';
-    return;
+    const listEl = document.createElement('ul');
+    listEl.className = 'club-results';
+    listEl.innerHTML = '<li class="empty">Aucun membre pour l’instant.</li>';
+    return listEl;
   }
 
   const userIds = members.map((m) => m.user_id);
@@ -69,6 +98,12 @@ async function renderTeamMembersList() {
     li.classList.toggle('highlight', isManager);
     listEl.appendChild(li);
   }
+  return listEl;
+}
+
+async function renderTeamMembersList() {
+  const contentEl = showModal('Membres de l’équipe');
+  const listEl = await buildTeamMembersListEl();
   contentEl.innerHTML = '';
   contentEl.appendChild(listEl);
 }

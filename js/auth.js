@@ -154,6 +154,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('login-form').addEventListener('submit', handleLogin);
   document.getElementById('signup-form').addEventListener('submit', handleSignup);
   document.getElementById('logout-button').addEventListener('click', handleLogout);
+  // Tableau de bord n'est plus un onglet de la barre : le pseudo/club en haut a gauche l'ouvre.
+  document.getElementById('app-header-profile-button').addEventListener('click', () => selectTab('profil'));
 
   document.querySelectorAll('.toggle-password').forEach((button) => {
     button.addEventListener('click', () => togglePasswordVisibility(button));

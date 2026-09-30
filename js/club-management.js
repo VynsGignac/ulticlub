@@ -7,8 +7,9 @@
 // - Valider membre (etait "Ajouter des membres") : confirme les membres qui ont rejoint le club
 //   via la recherche (partis "non valides", voir js/club.js) -- pas d'ajout direct d'un nouvel
 //   utilisateur, juste la validation de ceux qui ont deja demande a rejoindre.
-// - Gerer les responsables : bascule le role encadrant parmi les membres du club.
 // - Ajouter membre du bureau : bascule le role membre du bureau parmi les membres du club.
+// Pas de "Gerer les responsables" ici : les responsables se gerent desormais par equipe (choisis a
+// la creation par le bureau, ou par un autre responsable de cette equipe -- voir js/team-detail.js).
 // - Creer un evenement : ouvre un onglet dedie (voir js/club-event-create.js), visible dans le
 //   calendrier de tout le club au lieu d'une seule equipe.
 // - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
@@ -149,10 +150,6 @@ async function renderClubRoleToggle(title, field, tagLabel, rerender) {
   }
   contentEl.innerHTML = '';
   contentEl.appendChild(listEl);
-}
-
-function renderManageClubEncadrants() {
-  renderClubRoleToggle('Gérer les responsables', 'role_encadrant', 'encadrant', renderManageClubEncadrants);
 }
 
 function renderAddBureauMembers() {
@@ -491,7 +488,6 @@ async function renderClubEventDetail(evt) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-members').addEventListener('click', renderClubMembersList);
   document.getElementById('club-action-validate-members').addEventListener('click', renderValidateMembers);
-  document.getElementById('club-action-managers').addEventListener('click', renderManageClubEncadrants);
   document.getElementById('club-action-create-event').addEventListener('click', openClubEventCreate);
   document.getElementById('club-action-view-events').addEventListener('click', renderClubEventsList);
   document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);

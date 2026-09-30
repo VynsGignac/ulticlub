@@ -330,31 +330,52 @@ create policy "Les membres du club lisent les responsables d'equipe"
     where t.id = team_managers.team_id and cm.user_id = auth.uid()
   ));
 
--- Un encadrant peut designer n'importe quel membre du club comme responsable (pas seulement
--- lui-meme) : necessaire pour l'onglet "Gerer les responsables" (voir js/team-detail.js), qui
--- choisit parmi les membres actuels de l'equipe. Le bureau le peut aussi, pour choisir le
--- responsable a la creation de l'equipe (voir js/club-management.js).
+-- Un responsable d'equipe est identifie soit a la creation de l'equipe (choisi par le bureau, voir
+-- js/club-management.js), soit par un AUTRE responsable de cette meme equipe (voir "Gerer les
+-- responsables" dans js/team-detail.js) -- il n'y a plus de role "encadrant" club-wide (retire de
+-- Gestion club). SECURITY DEFINER pour eviter la recursion en s'auto-referencant dans sa propre
+-- policy (meme raison que is_club_bureau plus haut).
+create or replace function public.is_team_manager(target_team_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.team_managers
+    where team_id = target_team_id and user_id = auth.uid()
+  );
+$$;
+
+grant execute on function public.is_team_manager(uuid) to authenticated;
+
 drop policy if exists "Un encadrant s'ajoute comme responsable d'equipe" on public.team_managers;
 drop policy if exists "Les encadrants gerent les responsables d'equipe (ajout)" on public.team_managers;
 create policy "Les encadrants gerent les responsables d'equipe (ajout)"
   on public.team_managers for insert
   to authenticated
-  with check (exists (
-    select 1 from public.teams t
-    join public.club_members cm on cm.club_id = t.club_id
-    where t.id = team_managers.team_id and cm.user_id = auth.uid()
-      and (cm.role_encadrant = true or cm.role_membre_bureau = true)
-  ));
+  with check (
+    public.is_team_manager(team_managers.team_id)
+    or exists (
+      select 1 from public.teams t
+      join public.club_members cm on cm.club_id = t.club_id
+      where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+    )
+  );
 
 drop policy if exists "Les encadrants gerent les responsables d'equipe (retrait)" on public.team_managers;
 create policy "Les encadrants gerent les responsables d'equipe (retrait)"
   on public.team_managers for delete
   to authenticated
-  using (exists (
-    select 1 from public.teams t
-    join public.club_members cm on cm.club_id = t.club_id
-    where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
-  ));
+  using (
+    public.is_team_manager(team_managers.team_id)
+    or exists (
+      select 1 from public.teams t
+      join public.club_members cm on cm.club_id = t.club_id
+      where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+    )
+  );
 
 -- --- Membres d'une equipe (roster) -----------------------------
 -- Distinct des responsables ci-dessus : qui fait partie de l'equipe. Le createur d'une equipe y
@@ -380,19 +401,21 @@ create policy "Les membres du club lisent les membres d'equipe"
     where t.id = team_members.team_id and cm.user_id = auth.uid()
   ));
 
--- Le bureau peut aussi ajouter un membre a une equipe (necessaire pour y placer le responsable
--- choisi a la creation, voir js/club-management.js), en plus des encadrants au fil de la vie de
--- l'equipe (voir "Ajouter des membres" dans js/team-detail.js).
+-- Le bureau peut ajouter un membre a une equipe (necessaire pour y placer le responsable choisi a
+-- la creation, voir js/club-management.js), tout comme un responsable de cette equipe au fil de sa
+-- vie (voir "Ajouter des membres" dans js/team-detail.js).
 drop policy if exists "Les encadrants ajoutent des membres a l'equipe" on public.team_members;
 create policy "Les encadrants ajoutent des membres a l'equipe"
   on public.team_members for insert
   to authenticated
-  with check (exists (
-    select 1 from public.teams t
-    join public.club_members cm on cm.club_id = t.club_id
-    where t.id = team_members.team_id and cm.user_id = auth.uid()
-      and (cm.role_encadrant = true or cm.role_membre_bureau = true)
-  ));
+  with check (
+    public.is_team_manager(team_members.team_id)
+    or exists (
+      select 1 from public.teams t
+      join public.club_members cm on cm.club_id = t.club_id
+      where t.id = team_members.team_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+    )
+  );
 
 -- --- Evenements d'equipe ----------------------------------------
 -- Un evenement appartient a une equipe. Cyclique = hebdomadaire ; dans ce cas la date de derniere
@@ -439,11 +462,7 @@ create policy "Les encadrants creent un evenement d'equipe"
   to authenticated
   with check (
     created_by = auth.uid()
-    and exists (
-      select 1 from public.teams t
-      join public.club_members cm on cm.club_id = t.club_id
-      where t.id = team_events.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
-    )
+    and public.is_team_manager(team_events.team_id)
   );
 
 -- --- Selections d'equipe -----------------------------------------
@@ -478,11 +497,7 @@ create policy "Les encadrants creent une selection d'equipe"
   to authenticated
   with check (
     created_by = auth.uid()
-    and exists (
-      select 1 from public.teams t
-      join public.club_members cm on cm.club_id = t.club_id
-      where t.id = team_selections.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
-    )
+    and public.is_team_manager(team_selections.team_id)
   );
 
 -- --- Evenements de club (onglet Gestion club, reserve au bureau) ------

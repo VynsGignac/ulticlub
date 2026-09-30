@@ -1,17 +1,17 @@
 // ============================================================
-// Onglets de l'espace club. Tout le monde est "joueur" (acces aux onglets communs) ; les niveaux
-// additionnels et cumulables encadrant / membre du bureau debloquent respectivement "Gestion
-// equipe" et "Gestion club". Les onglets avec un vrai contenu (Calendrier, Profil...) ont leur
-// propre conteneur dedie (voir CUSTOM_TAB_CONTAINERS) ; les autres restent des placeholders en
-// attendant leur implementation.
+// Onglets de l'espace club. Tout le monde est "joueur" (acces a tous les onglets communs, y compris
+// desormais "Equipe" -- seul le detail d'une equipe specifique varie selon qu'on en est responsable
+// ou non, voir js/team-detail.js) ; membre du bureau debloque en plus "Gestion club". Les onglets
+// avec un vrai contenu ont leur propre conteneur dedie (voir CUSTOM_TAB_CONTAINERS) ; les autres
+// restent des placeholders en attendant leur implementation. "Tableau de bord" n'est plus un onglet
+// de la barre : on y accede via le bouton pseudo/club de l'en-tete (voir js/main.js).
 // ============================================================
 
 const TABS = [
-  { id: 'profil', label: 'Tableau de bord' },
   { id: 'calendrier', label: 'Calendrier' },
   { id: 'saison', label: 'Saison' },
   { id: 'vie-club', label: 'Vie de club' },
-  { id: 'gestion-equipe', label: 'Gestion équipe', requires: 'encadrant' },
+  { id: 'gestion-equipe', label: 'Équipe' },
   { id: 'gestion-club', label: 'Gestion club', requires: 'membreBureau' },
 ];
 
@@ -80,8 +80,6 @@ function renderTabs(roles) {
     tabsEl.appendChild(button);
   }
 
-  // Tableau de bord est place en premier dans la barre d'onglets (a gauche), mais Calendrier reste
-  // l'ecran affiche par defaut a l'entree dans l'app.
   const defaultTab = visible.find((t) => t.id === 'calendrier') || visible[0];
   if (defaultTab) selectTab(defaultTab.id);
 }
