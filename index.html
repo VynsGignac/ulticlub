@@ -57,6 +57,24 @@
     border-bottom: 1px solid #1f2731;
     flex: 0 0 auto;
   }
+  .app-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-icon-button {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid #2a333c;
+    background: #1a2028;
+    color: #e8edf2;
+    font-weight: 700;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .app-club-label {
     display: block;
     color: #8a97a4;
@@ -651,7 +669,10 @@
         <strong id="app-pseudo"></strong>
         <span class="app-club-label">Club : <strong id="app-club"></strong></span>
       </div>
-      <button type="button" id="logout-button" class="link">Se déconnecter</button>
+      <div class="app-header-actions">
+        <button type="button" id="help-menu-button" class="header-icon-button" aria-label="Aide">?</button>
+        <button type="button" id="logout-button" class="link">Se déconnecter</button>
+      </div>
     </div>
     <nav id="app-tabs" class="app-tabs"></nav>
     <div id="app-tab-content" class="app-tab-content"></div>
@@ -948,6 +969,7 @@
   <script src="js/club-event-create.js"></script>
   <script src="js/communications.js"></script>
   <script src="js/member-profile.js"></script>
+  <script src="js/help-menu.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 

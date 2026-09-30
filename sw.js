@@ -28,6 +28,7 @@ const ASSETS = [
   './js/club-event-create.js',
   './js/communications.js',
   './js/member-profile.js',
+  './js/help-menu.js',
   './js/tabs.js',
   './js/main.js',
   './icons/icon-192.png',
