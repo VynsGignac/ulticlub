@@ -12,7 +12,7 @@ async function renderEquipesActuelles() {
   const listEl = document.getElementById('equipes-list');
   listEl.innerHTML = '';
 
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
   if (!profile || !profile.active_club_id) {
     listEl.innerHTML = '<li class="empty">Aucun club actif.</li>';

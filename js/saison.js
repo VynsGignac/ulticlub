@@ -11,7 +11,7 @@
 // ============================================================
 
 async function fetchSaisonItems() {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
 
   const [{ data: teamMemberships }, { data: clubMemberships }] = await Promise.all([
     client.from('team_members').select('team_id').eq('user_id', user.id),
@@ -86,7 +86,7 @@ async function fetchSaisonItems() {
 }
 
 async function respondToEvent(confirmTable, confirmIdField, eventId, present) {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   await client.from(confirmTable).upsert(
     { [confirmIdField]: eventId, user_id: user.id, present },
     { onConflict: `${confirmIdField},user_id` },
@@ -95,7 +95,7 @@ async function respondToEvent(confirmTable, confirmIdField, eventId, present) {
 }
 
 async function toggleCandidature(selectionId, alreadyCandidate) {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   if (alreadyCandidate) {
     await client.from('team_selection_candidatures').delete().eq('selection_id', selectionId).eq('user_id', user.id);
   } else {

@@ -54,7 +54,7 @@ async function handleEventCreate(event) {
 
   submitButton.disabled = true;
   try {
-    const { data: { user } } = await client.auth.getUser();
+    const user = await requireUser();
     const { error } = await client.from('team_events').insert({ ...payload, created_by: user.id });
     if (error) {
       setMessage(errorEl, 'Erreur lors de la création de l’événement.', true);

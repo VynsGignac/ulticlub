@@ -67,7 +67,7 @@ function expandEventDates(evt) {
 // tous les clubs dont on est membre, quel que soit le club actif), et les indexe par jour pour le
 // detail au clic.
 async function fetchEventsByDateForCurrentUser() {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
 
   const [{ data: teamMemberships }, { data: clubMemberships }] = await Promise.all([
     client.from('team_members').select('team_id').eq('user_id', user.id),

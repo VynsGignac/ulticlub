@@ -6,6 +6,18 @@
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Utilise partout dans l'app a la place de client.auth.getUser() directement : ce dernier peut
+// renvoyer { user: null } SANS lever d'erreur (session expiree, requete qui echoue silencieusement
+// dans certains environnements comme la WebView Android...). Sans ce garde-fou, le code suivant
+// plantait avec un cryptique "Cannot read properties of null (reading 'id')" au lieu de remonter
+// la vraie cause -- ce qui nous a fait perdre du temps a diagnostiquer un bug sur l'APK.
+async function requireUser() {
+  const { data: { user }, error } = await client.auth.getUser();
+  if (error) throw error;
+  if (!user) throw new Error('Session utilisateur introuvable, reconnecte-toi.');
+  return user;
+}
+
 function showView(id) {
   for (const view of document.querySelectorAll('.view')) {
     view.classList.toggle('active', view.id === id);

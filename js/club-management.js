@@ -28,7 +28,7 @@ function hideClubDebtSaveButton() {
 }
 
 async function renderGestionClubTab() {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
 
   currentGestionClubId = profile ? profile.active_club_id : null;
@@ -379,7 +379,7 @@ async function handleClubTeamCreate(event) {
   submitButton.disabled = true;
 
   try {
-    const { data: { user } } = await client.auth.getUser();
+    const user = await requireUser();
     const { data: team, error: createError } = await client
       .from('teams')
       .insert({ categorie, section, division, surface, club_id: currentGestionClubId, created_by: user.id })

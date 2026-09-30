@@ -25,7 +25,7 @@ function selectDashboardSubTab(subTabId) {
 }
 
 async function renderProfilSubTab() {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
 
   const { data: profile } = await client
     .from('profiles')
@@ -127,7 +127,7 @@ async function renderAdministratifSubTab() {
   const licenceCheckbox = document.getElementById('dashboard-licence-a-jour');
   const detteInput = document.getElementById('dashboard-dette');
 
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
 
   if (!profile || !profile.active_club_id) {
@@ -150,7 +150,7 @@ async function renderAdministratifSubTab() {
 async function leaveActiveClub(clubId, clubNom) {
   if (!confirm(`Quitter ${clubNom} ?`)) return;
 
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   await client.from('club_members').delete().eq('user_id', user.id).eq('club_id', clubId);
 
   const { data: remaining } = await client.from('club_members').select('club_id').eq('user_id', user.id).limit(1);
@@ -161,7 +161,7 @@ async function leaveActiveClub(clubId, clubNom) {
 }
 
 async function switchActiveClub(clubId) {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   await client.from('profiles').update({ active_club_id: clubId }).eq('id', user.id);
   await routeAfterLogin(user.id, currentPseudo);
 }
@@ -189,7 +189,7 @@ async function handleProfilSave(event) {
   };
 
   try {
-    const { data: { user } } = await client.auth.getUser();
+    const user = await requireUser();
     const { error } = await client.from('profiles').update(updates).eq('id', user.id);
     if (error) {
       const message = error.code === '23505'

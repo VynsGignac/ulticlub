@@ -39,7 +39,7 @@ async function renderMemberProfileTab() {
   contentEl.innerHTML = '<p class="message">Chargement...</p>';
 
   const targetUserId = pendingMemberProfileUserId;
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
 
   const [{ data: targetProfile }, { data: viewerProfile }] = await Promise.all([
     client

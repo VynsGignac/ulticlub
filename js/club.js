@@ -82,7 +82,7 @@ async function joinClub(clubId) {
   setMessage(errorEl, '');
 
   try {
-    const { data: { user } } = await client.auth.getUser();
+    const user = await requireUser();
 
     // Part non valide : le bureau confirme l'adhesion via "Valider membre" dans Gestion club.
     const { error: memberError } = await client
@@ -122,7 +122,7 @@ async function handleClubCreate(event) {
   submitButton.disabled = true;
 
   try {
-    const { data: { user } } = await client.auth.getUser();
+    const user = await requireUser();
     const { data: club, error: createError } = await client
       .from('clubs')
       .insert({ nom, created_by: user.id })

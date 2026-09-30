@@ -31,7 +31,7 @@ async function refreshCommunicationsBadge() {
   const badgeEl = document.getElementById('communications-fab-badge');
   if (!badgeEl) return;
 
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   if (!user) { badgeEl.style.display = 'none'; return; }
 
   const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
@@ -63,7 +63,7 @@ async function markCommunicationsRead(userId, clubId) {
 }
 
 async function renderCommunicationsTab() {
-  const { data: { user } } = await client.auth.getUser();
+  const user = await requireUser();
   const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
   currentCommunicationsClubId = profile ? profile.active_club_id : null;
 
@@ -217,7 +217,7 @@ async function handleCommunicationCreate(event) {
 
   submitButton.disabled = true;
   try {
-    const { data: { user } } = await client.auth.getUser();
+    const user = await requireUser();
     const { error } = await client
       .from('club_communications')
       .insert({ club_id: currentCommunicationsClubId, message, created_by: user.id });
