@@ -179,4 +179,5 @@ document.addEventListener('DOMContentLoaded', () => {
     showClubSelect(currentPseudo);
   });
   document.getElementById('club-create-form').addEventListener('submit', handleClubCreate);
+  document.getElementById('club-select-logout').addEventListener('click', handleLogout);
 });

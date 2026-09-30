@@ -13,8 +13,18 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // la vraie cause -- ce qui nous a fait perdre du temps a diagnostiquer un bug sur l'APK.
 async function requireUser() {
   const { data: { user }, error } = await client.auth.getUser();
-  if (error) throw error;
-  if (!user) throw new Error('Session utilisateur introuvable, reconnecte-toi.');
+  if (error || !user) {
+    // Cas reel rencontre : une session enregistree sur l'appareil pointe vers un compte supprime
+    // depuis (AuthApiError "User from sub claim in JWT does not exist") -- ca laissait l'utilisateur
+    // bloque sur son ecran actuel avec une erreur technique, sans aucun moyen de s'en sortir.
+    // On nettoie la session et on renvoie directement vers la connexion, avec un message clair.
+    console.error('requireUser: session invalide', error);
+    await client.auth.signOut();
+    document.getElementById('login-form').reset();
+    setMessage(document.getElementById('login-info'), 'Ta session a expiré, reconnecte-toi.');
+    showView('view-login');
+    throw new Error('Session expirée.');
+  }
   return user;
 }
 
