@@ -11,6 +11,10 @@
 //   calendrier de tout le club au lieu d'une seule equipe.
 // - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
 //   en bas de l'ecran valide toutes les modifications en une fois.
+// - Valider licence : liste tous les membres avec une case a cocher "licence a jour", modifiable
+//   immediatement au clic (pas de bouton de sauvegarde, contrairement a la dette).
+// - Creer une equipe : la creation d'equipe est cote bureau (pas encadrant) -- le bureau choisit
+//   qui en devient responsable parmi les membres du club, voir handleClubTeamCreate ci-dessous.
 // - Communication : ouvre le meme panneau que l'icone flottante "communications", visible dans
 //   tous les onglets (voir js/communications.js).
 // Pas d'equivalent a "Gerer les selections" : ca n'a pas de sens a l'echelle du club entier.
@@ -67,7 +71,8 @@ async function renderClubMembersList() {
     if (member.role_membre_bureau) tags.push('bureau');
 
     const li = document.createElement('li');
-    li.textContent = (pseudoById.get(member.user_id) || 'Inconnu') + (tags.length ? ` (${tags.join(', ')})` : '');
+    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+    if (tags.length) li.appendChild(document.createTextNode(` (${tags.join(', ')})`));
     li.classList.toggle('highlight', tags.length > 0);
     listEl.appendChild(li);
   }
@@ -102,7 +107,7 @@ async function renderValidateMembers() {
   listEl.className = 'club-results';
   for (const member of pending) {
     const li = document.createElement('li');
-    li.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
     li.addEventListener('click', () => validateMember(member.user_id));
     listEl.appendChild(li);
   }
@@ -137,7 +142,8 @@ async function renderClubRoleToggle(field, tagLabel, rerender) {
   for (const member of members) {
     const isOn = !!member[field];
     const li = document.createElement('li');
-    li.textContent = (pseudoById.get(member.user_id) || 'Inconnu') + (isOn ? ` (${tagLabel})` : '');
+    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+    if (isOn) li.appendChild(document.createTextNode(` (${tagLabel})`));
     li.classList.toggle('highlight', isOn);
     li.addEventListener('click', () => toggleClubRole(member.user_id, field, isOn, rerender));
     listEl.appendChild(li);
@@ -177,8 +183,7 @@ async function renderClubManageDebt() {
     const li = document.createElement('li');
     li.className = 'debt-row';
 
-    const label = document.createElement('span');
-    label.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+    const label = createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu');
 
     const input = document.createElement('input');
     input.type = 'number';
@@ -210,6 +215,199 @@ async function saveClubDebts() {
   saveButton.disabled = false;
   saveButton.textContent = 'Enregistré ✓';
   setTimeout(() => { saveButton.textContent = 'Valider'; }, 1500);
+}
+
+async function toggleMemberLicence(userId, isCurrentlyOn) {
+  await client.from('club_members').update({ licence_a_jour: !isCurrentlyOn }).eq('club_id', currentGestionClubId).eq('user_id', userId);
+  renderClubValidateLicence();
+}
+
+// Contrairement a "Gerer dette", chaque case se sauvegarde immediatement au clic -- pas de bouton
+// de validation groupee, la valeur est un simple booleen.
+async function renderClubValidateLicence() {
+  hideClubDebtSaveButton();
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: members } = await client
+    .from('club_members')
+    .select('user_id, licence_a_jour')
+    .eq('club_id', currentGestionClubId);
+
+  if (!members || !members.length) {
+    contentEl.innerHTML = '<p class="message">Aucun membre pour l’instant.</p>';
+    return;
+  }
+
+  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const member of members) {
+    const li = document.createElement('li');
+    li.className = 'debt-row';
+
+    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+
+    const checkboxLabel = document.createElement('label');
+    checkboxLabel.className = 'checkbox-label';
+    checkboxLabel.style.marginTop = '0';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = !!member.licence_a_jour;
+    checkbox.addEventListener('change', () => toggleMemberLicence(member.user_id, member.licence_a_jour));
+    checkboxLabel.appendChild(checkbox);
+    checkboxLabel.appendChild(document.createTextNode('Licence à jour'));
+    li.appendChild(checkboxLabel);
+
+    listEl.appendChild(li);
+  }
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(listEl);
+}
+
+// Creation d'une equipe cote bureau : mêmes 4 champs structures que l'ancienne creation cote
+// encadrant (voir js/team-management.js, desormais lecture seule), plus le choix du membre qui en
+// devient responsable.
+async function renderClubTeamCreate() {
+  hideClubDebtSaveButton();
+  const contentEl = document.getElementById('club-detail-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { data: members } = await client
+    .from('club_members')
+    .select('user_id')
+    .eq('club_id', currentGestionClubId)
+    .eq('valide', true);
+
+  const pseudoById = await fetchPseudosByIdForClub((members || []).map((m) => m.user_id));
+
+  const form = document.createElement('form');
+  form.className = 'panel';
+  form.id = 'club-team-create-form';
+
+  const buildSelect = (id, labelText, options) => {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const select = document.createElement('select');
+    select.id = id;
+    select.required = true;
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    placeholder.textContent = 'Choisir...';
+    select.appendChild(placeholder);
+    for (const value of options) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    }
+    label.appendChild(select);
+    form.appendChild(label);
+    return select;
+  };
+
+  buildSelect('club-team-categorie', 'Catégorie', ['Open', 'Féminin', 'Mixte']);
+  buildSelect('club-team-section', 'Section', ['Junior', 'Adulte', 'Master']);
+
+  const divisionLabel = document.createElement('label');
+  divisionLabel.textContent = 'Division';
+  const divisionInput = document.createElement('input');
+  divisionInput.type = 'text';
+  divisionInput.id = 'club-team-division';
+  divisionInput.required = true;
+  divisionLabel.appendChild(divisionInput);
+  form.appendChild(divisionLabel);
+
+  buildSelect('club-team-surface', 'Surface', ['Outdoor', 'Indoor', 'Beach']);
+
+  const respLabel = document.createElement('label');
+  respLabel.textContent = 'Responsable de l’équipe';
+  const respSelect = document.createElement('select');
+  respSelect.id = 'club-team-responsable';
+  respSelect.required = true;
+  const respPlaceholder = document.createElement('option');
+  respPlaceholder.value = '';
+  respPlaceholder.disabled = true;
+  respPlaceholder.selected = true;
+  respPlaceholder.textContent = 'Choisir un membre...';
+  respSelect.appendChild(respPlaceholder);
+  for (const member of members || []) {
+    const option = document.createElement('option');
+    option.value = member.user_id;
+    option.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+    respSelect.appendChild(option);
+  }
+  respLabel.appendChild(respSelect);
+  form.appendChild(respLabel);
+
+  const infoEl = document.createElement('p');
+  infoEl.id = 'club-team-create-info';
+  infoEl.className = 'message';
+  const errorEl = document.createElement('p');
+  errorEl.id = 'club-team-create-error';
+  errorEl.className = 'message error';
+  form.appendChild(infoEl);
+  form.appendChild(errorEl);
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.textContent = 'Créer';
+  form.appendChild(submitButton);
+
+  form.addEventListener('submit', handleClubTeamCreate);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(form);
+}
+
+async function handleClubTeamCreate(event) {
+  event.preventDefault();
+  const submitButton = event.submitter;
+  const categorie = document.getElementById('club-team-categorie').value;
+  const section = document.getElementById('club-team-section').value;
+  const division = document.getElementById('club-team-division').value.trim();
+  const surface = document.getElementById('club-team-surface').value;
+  const responsableId = document.getElementById('club-team-responsable').value;
+  const errorEl = document.getElementById('club-team-create-error');
+  const infoEl = document.getElementById('club-team-create-info');
+  setMessage(errorEl, '');
+  setMessage(infoEl, '');
+  submitButton.disabled = true;
+
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    const { data: team, error: createError } = await client
+      .from('teams')
+      .insert({ categorie, section, division, surface, club_id: currentGestionClubId, created_by: user.id })
+      .select('id')
+      .single();
+
+    if (createError) {
+      const message = createError.code === '23505'
+        ? 'Une équipe porte déjà ce nom dans ce club.'
+        : 'Erreur lors de la création de l’équipe.';
+      setMessage(errorEl, message, true);
+      return;
+    }
+
+    const { error: memberError } = await client.from('team_members').insert({ team_id: team.id, user_id: responsableId });
+    const { error: managerError } = await client.from('team_managers').insert({ team_id: team.id, user_id: responsableId });
+    if (memberError || managerError) {
+      setMessage(errorEl, 'Équipe créée, mais impossible de lui attribuer un responsable.', true);
+      return;
+    }
+
+    document.getElementById('club-team-create-form').reset();
+    setMessage(infoEl, 'Équipe créée.');
+  } catch {
+    setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
+  } finally {
+    submitButton.disabled = false;
+  }
 }
 
 // Liste des evenements du club (les plus proches d'abord) : cliquer sur l'un d'eux affiche qui a
@@ -280,7 +478,8 @@ async function renderClubEventDetail(evt) {
       const response = responseByUser.has(member.user_id) ? responseByUser.get(member.user_id) : null;
       const label = response === true ? 'présent' : response === false ? 'absent' : 'en attente';
       const li = document.createElement('li');
-      li.textContent = `${pseudoById.get(member.user_id) || 'Inconnu'} (${label})`;
+      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+      li.appendChild(document.createTextNode(` (${label})`));
       li.classList.toggle('highlight', response === true);
       listEl.appendChild(li);
     }
@@ -307,5 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);
   document.getElementById('club-action-manage-debt').addEventListener('click', renderClubManageDebt);
   document.getElementById('club-debt-save-button').addEventListener('click', saveClubDebts);
+  document.getElementById('club-action-validate-licence').addEventListener('click', renderClubValidateLicence);
+  document.getElementById('club-action-create-team').addEventListener('click', renderClubTeamCreate);
   document.getElementById('club-action-communication').addEventListener('click', openCommunications);
 });

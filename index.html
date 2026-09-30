@@ -410,6 +410,12 @@
     cursor: pointer;
   }
   .club-results li:hover { border-color: #3b82f6; }
+  .member-name-link {
+    cursor: pointer;
+  }
+  .member-name-link:hover {
+    text-decoration: underline;
+  }
   .club-results li.empty {
     color: #4a5560;
     text-align: center;
@@ -617,53 +623,7 @@
     </div>
 
     <div id="tab-content-gestion-equipe" class="tab-content-gestion-equipe" style="display: none;">
-      <nav class="subtabs">
-        <button type="button" class="subtab-button" data-subtab="equipes-actuelles">Équipes actuelles</button>
-        <button type="button" class="subtab-button" data-subtab="creation-equipe">Création d'équipe</button>
-      </nav>
-
-      <div id="subtab-equipes-actuelles" class="subtab-panel">
-        <ul id="equipes-list" class="club-results"></ul>
-      </div>
-
-      <div id="subtab-creation-equipe" class="subtab-panel" style="display: none;">
-        <form id="equipe-create-form" class="panel">
-          <label>
-            Catégorie
-            <select id="equipe-categorie" required>
-              <option value="" disabled selected>Choisir...</option>
-              <option value="Open">Open</option>
-              <option value="Féminin">Féminin</option>
-              <option value="Mixte">Mixte</option>
-            </select>
-          </label>
-          <label>
-            Section
-            <select id="equipe-section" required>
-              <option value="" disabled selected>Choisir...</option>
-              <option value="Junior">Junior</option>
-              <option value="Adulte">Adulte</option>
-              <option value="Master">Master</option>
-            </select>
-          </label>
-          <label>
-            Division
-            <input id="equipe-division" type="text" required>
-          </label>
-          <label>
-            Surface
-            <select id="equipe-surface" required>
-              <option value="" disabled selected>Choisir...</option>
-              <option value="Outdoor">Outdoor</option>
-              <option value="Indoor">Indoor</option>
-              <option value="Beach">Beach</option>
-            </select>
-          </label>
-          <p id="equipe-create-preview" class="message"></p>
-          <p id="equipe-create-error" class="message error"></p>
-          <button type="submit">Créer</button>
-        </form>
-      </div>
+      <ul id="equipes-list" class="club-results"></ul>
     </div>
 
     <div id="tab-content-team-detail" class="tab-content-team-detail" style="display: none;">
@@ -753,10 +713,12 @@
         <button type="button" id="club-action-members" class="action-button">Gérer membre</button>
         <button type="button" id="club-action-validate-members" class="action-button">Valider membre</button>
         <button type="button" id="club-action-managers" class="action-button">Gérer les responsables</button>
+        <button type="button" id="club-action-create-team" class="action-button">Créer une équipe</button>
         <button type="button" id="club-action-create-event" class="action-button">Créer un événement</button>
         <button type="button" id="club-action-view-events" class="action-button">Voir les événements</button>
         <button type="button" id="club-action-add-bureau" class="action-button">Ajouter membre du bureau</button>
         <button type="button" id="club-action-manage-debt" class="action-button">Gérer dette</button>
+        <button type="button" id="club-action-validate-licence" class="action-button">Valider licence</button>
         <button type="button" id="club-action-communication" class="action-button">Communication</button>
       </div>
       <div id="club-detail-content" class="team-detail-content"></div>
@@ -900,6 +862,10 @@
       <div id="communications-content" class="team-detail-content"></div>
     </div>
 
+    <div id="tab-content-member-profile" class="tab-content-team-detail" style="display: none;">
+      <div id="member-profile-content" class="team-detail-content"></div>
+    </div>
+
     <button type="button" id="communications-fab" class="floating-fab" aria-label="Communications">
       ✉️
       <span id="communications-fab-badge" class="fab-badge" style="display: none;"></span>
@@ -923,6 +889,7 @@
   <script src="js/club-management.js"></script>
   <script src="js/club-event-create.js"></script>
   <script src="js/communications.js"></script>
+  <script src="js/member-profile.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>
 

@@ -50,6 +50,10 @@ async function handleLogin(event) {
       return;
     }
 
+    // Resynchronise l'email en base (voir supabase/schema.sql) : couvre les comptes crees avant
+    // l'ajout de cette colonne, sans que l'utilisateur ait a resauvegarder son profil.
+    client.from('profiles').update({ email }).eq('id', data.user.id);
+
     await routeAfterLogin(data.user.id, email);
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, reessaie plus tard.', true);
@@ -85,7 +89,7 @@ async function handleSignup(event) {
       return;
     }
 
-    const { error: profileError } = await client.from('profiles').insert({ id: userId, nom, pseudo });
+    const { error: profileError } = await client.from('profiles').insert({ id: userId, nom, pseudo, email });
     if (profileError) {
       const message = profileError.code === '23505'
         ? 'Ce pseudo est deja utilise.'
@@ -143,6 +147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Reste connecte d'un lancement de l'app a l'autre tant que la session Supabase est valide.
   const { data: { session } } = await client.auth.getSession();
   if (session) {
+    client.from('profiles').update({ email: session.user.email }).eq('id', session.user.id);
     await routeAfterLogin(session.user.id, session.user.email);
   }
 });

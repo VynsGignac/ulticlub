@@ -64,7 +64,8 @@ async function renderTeamMembersList() {
   for (const userId of userIds) {
     const isManager = managerIds.has(userId);
     const li = document.createElement('li');
-    li.textContent = (pseudoById.get(userId) || 'Inconnu') + (isManager ? ' (responsable)' : '');
+    li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
+    if (isManager) li.appendChild(document.createTextNode(' (responsable)'));
     li.classList.toggle('highlight', isManager);
     listEl.appendChild(li);
   }
@@ -100,7 +101,7 @@ async function renderAddMembersForm() {
   listEl.className = 'club-results';
   for (const userId of candidateIds) {
     const li = document.createElement('li');
-    li.textContent = pseudoById.get(userId) || 'Inconnu';
+    li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
     li.addEventListener('click', () => addTeamMember(userId));
     listEl.appendChild(li);
   }
@@ -141,7 +142,8 @@ async function renderManageManagers() {
   for (const userId of userIds) {
     const isManager = managerIds.has(userId);
     const li = document.createElement('li');
-    li.textContent = (pseudoById.get(userId) || 'Inconnu') + (isManager ? ' (responsable)' : '');
+    li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
+    if (isManager) li.appendChild(document.createTextNode(' (responsable)'));
     li.classList.toggle('highlight', isManager);
     li.addEventListener('click', () => toggleTeamManager(userId, isManager));
     listEl.appendChild(li);
@@ -216,7 +218,8 @@ async function renderTeamEventDetail(evt) {
       const response = responseByUser.has(member.user_id) ? responseByUser.get(member.user_id) : null;
       const label = response === true ? 'présent' : response === false ? 'absent' : 'en attente';
       const li = document.createElement('li');
-      li.textContent = `${pseudoById.get(member.user_id) || 'Inconnu'} (${label})`;
+      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+      li.appendChild(document.createTextNode(` (${label})`));
       li.classList.toggle('highlight', response === true);
       listEl.appendChild(li);
     }
@@ -308,7 +311,7 @@ async function renderTeamSelectionDetail(sel) {
   } else {
     for (const c of candidatures) {
       const li = document.createElement('li');
-      li.textContent = pseudoById.get(c.user_id) || 'Inconnu';
+      li.appendChild(createMemberNameElement(c.user_id, pseudoById.get(c.user_id) || 'Inconnu'));
       listEl.appendChild(li);
     }
   }

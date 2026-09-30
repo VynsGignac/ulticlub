@@ -53,6 +53,12 @@ alter table public.profiles add column if not exists telephone text;
 alter table public.profiles add column if not exists adresse text;
 alter table public.profiles add column if not exists date_naissance date;
 
+-- Dupliquee depuis auth.users (accessible uniquement pour son propre compte via le SDK) afin que
+-- les AUTRES membres du club puissent la voir dans la fiche profil, sous reserve de
+-- visible_email -- voir js/member-profile.js. Renseignee a l'inscription et resynchronisee a
+-- chaque connexion (voir js/auth.js) pour couvrir les comptes crees avant cette colonne.
+alter table public.profiles add column if not exists email text;
+
 -- Sur les installations anterieures a la suppression du telephone obligatoire a l'inscription,
 -- cette colonne a ete creee "not null" : on l'assouplit pour que les nouvelles inscriptions
 -- (qui ne renseignent plus le telephone) ne cassent plus l'insertion du profil.
@@ -286,15 +292,18 @@ create policy "Les membres du club lisent les equipes de leur club"
     where cm.club_id = teams.club_id and cm.user_id = auth.uid()
   ));
 
+-- La creation d'equipe se fait desormais cote bureau, depuis Gestion club (voir
+-- js/club-management.js) : le bureau choisit qui en devient responsable, pas forcement lui-meme.
 drop policy if exists "Les encadrants creent une equipe dans leur club" on public.teams;
-create policy "Les encadrants creent une equipe dans leur club"
+drop policy if exists "Le bureau cree une equipe dans son club" on public.teams;
+create policy "Le bureau cree une equipe dans son club"
   on public.teams for insert
   to authenticated
   with check (
     created_by = auth.uid()
     and exists (
       select 1 from public.club_members cm
-      where cm.club_id = teams.club_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+      where cm.club_id = teams.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
     )
   );
 
@@ -323,7 +332,8 @@ create policy "Les membres du club lisent les responsables d'equipe"
 
 -- Un encadrant peut designer n'importe quel membre du club comme responsable (pas seulement
 -- lui-meme) : necessaire pour l'onglet "Gerer les responsables" (voir js/team-detail.js), qui
--- choisit parmi les membres actuels de l'equipe. Couvre aussi l'auto-affectation a la creation.
+-- choisit parmi les membres actuels de l'equipe. Le bureau le peut aussi, pour choisir le
+-- responsable a la creation de l'equipe (voir js/club-management.js).
 drop policy if exists "Un encadrant s'ajoute comme responsable d'equipe" on public.team_managers;
 drop policy if exists "Les encadrants gerent les responsables d'equipe (ajout)" on public.team_managers;
 create policy "Les encadrants gerent les responsables d'equipe (ajout)"
@@ -332,7 +342,8 @@ create policy "Les encadrants gerent les responsables d'equipe (ajout)"
   with check (exists (
     select 1 from public.teams t
     join public.club_members cm on cm.club_id = t.club_id
-    where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    where t.id = team_managers.team_id and cm.user_id = auth.uid()
+      and (cm.role_encadrant = true or cm.role_membre_bureau = true)
   ));
 
 drop policy if exists "Les encadrants gerent les responsables d'equipe (retrait)" on public.team_managers;
@@ -369,6 +380,9 @@ create policy "Les membres du club lisent les membres d'equipe"
     where t.id = team_members.team_id and cm.user_id = auth.uid()
   ));
 
+-- Le bureau peut aussi ajouter un membre a une equipe (necessaire pour y placer le responsable
+-- choisi a la creation, voir js/club-management.js), en plus des encadrants au fil de la vie de
+-- l'equipe (voir "Ajouter des membres" dans js/team-detail.js).
 drop policy if exists "Les encadrants ajoutent des membres a l'equipe" on public.team_members;
 create policy "Les encadrants ajoutent des membres a l'equipe"
   on public.team_members for insert
@@ -376,7 +390,8 @@ create policy "Les encadrants ajoutent des membres a l'equipe"
   with check (exists (
     select 1 from public.teams t
     join public.club_members cm on cm.club_id = t.club_id
-    where t.id = team_members.team_id and cm.user_id = auth.uid() and cm.role_encadrant = true
+    where t.id = team_members.team_id and cm.user_id = auth.uid()
+      and (cm.role_encadrant = true or cm.role_membre_bureau = true)
   ));
 
 -- --- Evenements d'equipe ----------------------------------------
