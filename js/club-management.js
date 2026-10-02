@@ -442,6 +442,10 @@ let clubEventsSelectedId = null;
 
 async function renderClubEventsList() {
   const contentEl = showModal('Événement club');
+  // Les 2 colonnes (liste / detail) scrollent chacune independamment -- voir .club-events-page
+  // dans index.html -- contrairement a tous les autres ecrans ou c'est #app-modal-body lui-meme
+  // qui scrolle. showModal() retire cette classe par defaut a chaque ouverture ; on la rajoute ici.
+  contentEl.classList.add('no-scroll');
 
   const { data: events } = await client
     .from('club_events')
@@ -450,7 +454,7 @@ async function renderClubEventsList() {
     .order('date_debut', { ascending: true });
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel panel-wide';
+  wrapper.className = 'panel panel-wide club-events-page';
 
   const newButton = document.createElement('button');
   newButton.type = 'button';
@@ -548,15 +552,24 @@ async function renderClubEventDetailInto(container, evt) {
     const pseudoById = await fetchPseudosByIdForClub((members || []).map((m) => m.user_id));
     const responseByUser = new Map((confirmations || []).map((c) => [c.user_id, c.present]));
 
+    const presentCount = (members || []).filter((m) => responseByUser.get(m.user_id) === true).length;
+    const absentCount = (members || []).filter((m) => responseByUser.get(m.user_id) === false).length;
+    const pendingCount = (members || []).length - presentCount - absentCount;
+
+    const summary = document.createElement('p');
+    summary.className = 'club-events-split-summary';
+    summary.textContent = `Présents : ${presentCount} · Absents : ${absentCount} · En attente : ${pendingCount}`;
+    detail.appendChild(summary);
+
     const listEl = document.createElement('ul');
-    listEl.className = 'club-results';
+    listEl.className = 'detail-member-list';
     for (const member of members || []) {
       const response = responseByUser.has(member.user_id) ? responseByUser.get(member.user_id) : null;
       const label = response === true ? 'présent' : response === false ? 'absent' : 'en attente';
       const li = document.createElement('li');
-      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-      li.appendChild(document.createTextNode(` (${label})`));
+      li.textContent = `${pseudoById.get(member.user_id) || 'Inconnu'} (${label})`;
       li.classList.toggle('highlight', response === true);
+      li.addEventListener('click', () => openMemberProfile(member.user_id, renderClubEventsList));
       listEl.appendChild(li);
     }
     detail.appendChild(listEl);

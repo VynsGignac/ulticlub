@@ -13,6 +13,9 @@ function showModal(title) {
   document.getElementById('app-modal-title').textContent = title;
   const body = document.getElementById('app-modal-body');
   body.innerHTML = '<p class="message">Chargement...</p>';
+  // Reinitialise a chaque ouverture : seul js/club-management.js (Evenement club, scroll
+  // independant par colonne) rajoute cette classe lui-meme -- voir .no-scroll dans index.html.
+  body.classList.remove('no-scroll');
   document.getElementById('app-modal-overlay').style.display = 'flex';
   return body;
 }
