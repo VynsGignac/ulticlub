@@ -18,24 +18,24 @@ function buildClubEventCreateForm() {
   const form = document.createElement('form');
   form.className = 'panel';
 
-  const addField = (id, labelText, type) => {
+  const addField = (id, labelText, type, required) => {
     const label = document.createElement('label');
     label.textContent = labelText;
     const input = document.createElement('input');
     input.type = type;
     input.id = id;
-    input.required = true;
+    input.required = required;
     label.appendChild(input);
     form.appendChild(label);
     return input;
   };
 
-  addField('club-event-nom', 'Nom de l’événement', 'text');
-  addField('club-event-date-debut', 'Date de début', 'date');
-  addField('club-event-date-fin', 'Date de fin', 'date');
-  addField('club-event-heure-debut', 'Heure de début', 'time');
-  addField('club-event-heure-fin', 'Heure de fin', 'time');
-  addField('club-event-lieu', 'Lieu', 'text');
+  addField('club-event-nom', 'Nom de l’événement', 'text', true);
+  addField('club-event-date-debut', 'Date de début', 'date', true);
+  addField('club-event-date-fin', 'Date de fin (optionnel, = date de début si vide)', 'date', false);
+  addField('club-event-heure-debut', 'Heure de début', 'time', true);
+  addField('club-event-heure-fin', 'Heure de fin (optionnel, = heure de début si vide)', 'time', false);
+  addField('club-event-lieu', 'Lieu (optionnel)', 'text', false);
 
   const commentLabel = document.createElement('label');
   commentLabel.textContent = 'Commentaire';
@@ -118,14 +118,17 @@ async function handleClubEventCreate(event) {
     return;
   }
 
+  const dateDebut = document.getElementById('club-event-date-debut').value;
+  const heureDebut = document.getElementById('club-event-heure-debut').value;
+
   const payload = {
     club_id: currentGestionClubId,
     nom: document.getElementById('club-event-nom').value.trim(),
-    date_debut: document.getElementById('club-event-date-debut').value,
-    date_fin: document.getElementById('club-event-date-fin').value,
-    heure_debut: document.getElementById('club-event-heure-debut').value,
-    heure_fin: document.getElementById('club-event-heure-fin').value,
-    lieu: document.getElementById('club-event-lieu').value.trim(),
+    date_debut: dateDebut,
+    date_fin: document.getElementById('club-event-date-fin').value || dateDebut,
+    heure_debut: heureDebut,
+    heure_fin: document.getElementById('club-event-heure-fin').value || heureDebut,
+    lieu: document.getElementById('club-event-lieu').value.trim() || null,
     commentaire: document.getElementById('club-event-commentaire').value.trim() || null,
     cyclique,
     date_derniere_occurrence: cyclique ? derniereOccurrence : null,

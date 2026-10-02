@@ -38,14 +38,17 @@ async function handleEventCreate(event) {
     return;
   }
 
+  const dateDebut = document.getElementById('event-date-debut').value;
+  const heureDebut = document.getElementById('event-heure-debut').value;
+
   const payload = {
     team_id: currentTeamId,
     nom: document.getElementById('event-nom').value.trim(),
-    date_debut: document.getElementById('event-date-debut').value,
-    date_fin: document.getElementById('event-date-fin').value,
-    heure_debut: document.getElementById('event-heure-debut').value,
-    heure_fin: document.getElementById('event-heure-fin').value,
-    lieu: document.getElementById('event-lieu').value.trim(),
+    date_debut: dateDebut,
+    date_fin: document.getElementById('event-date-fin').value || dateDebut,
+    heure_debut: heureDebut,
+    heure_fin: document.getElementById('event-heure-fin').value || heureDebut,
+    lieu: document.getElementById('event-lieu').value.trim() || null,
     commentaire: document.getElementById('event-commentaire').value.trim() || null,
     cyclique,
     date_derniere_occurrence: cyclique ? derniereOccurrence : null,

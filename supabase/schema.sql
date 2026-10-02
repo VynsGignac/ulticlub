@@ -431,7 +431,7 @@ create table if not exists public.team_events (
   date_fin date not null,
   heure_debut time not null,
   heure_fin time not null,
-  lieu text not null,
+  lieu text,
   commentaire text,
   cyclique boolean not null default false,
   date_derniere_occurrence date,
@@ -439,6 +439,10 @@ create table if not exists public.team_events (
   created_by uuid not null references auth.users (id),
   created_at timestamptz not null default now()
 );
+
+-- Lieu, date de fin et heure de fin sont devenus facultatifs cote app (fin = debut si non
+-- renseigne) ; au cas ou la table existait deja avec lieu en NOT NULL, on leve la contrainte.
+alter table public.team_events alter column lieu drop not null;
 
 alter table public.team_events drop constraint if exists team_events_cyclique_check;
 alter table public.team_events add constraint team_events_cyclique_check
@@ -512,7 +516,7 @@ create table if not exists public.club_events (
   date_fin date not null,
   heure_debut time not null,
   heure_fin time not null,
-  lieu text not null,
+  lieu text,
   commentaire text,
   cyclique boolean not null default false,
   date_derniere_occurrence date,
@@ -520,6 +524,10 @@ create table if not exists public.club_events (
   created_by uuid not null references auth.users (id),
   created_at timestamptz not null default now()
 );
+
+-- Lieu, date de fin et heure de fin sont devenus facultatifs cote app (fin = debut si non
+-- renseigne) ; au cas ou la table existait deja avec lieu en NOT NULL, on leve la contrainte.
+alter table public.club_events alter column lieu drop not null;
 
 alter table public.club_events drop constraint if exists club_events_cyclique_check;
 alter table public.club_events add constraint club_events_cyclique_check

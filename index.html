@@ -224,7 +224,22 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 4px;
+    width: 100%;
+  }
+  /* Regroupe filter-row et tout autre controle de filtre (ex. le champ "Dette superieure a" dans
+     Administratif) pour qu'ils restent fixes ensemble en haut de la fenetre pendant le defilement
+     de la liste en dessous -- comme une ligne figee. */
+  .sticky-filters {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #10151a;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 0 12px;
+    border-bottom: 1px solid #1f2731;
   }
   .filter-chip {
     background: #1a2028;
@@ -742,20 +757,20 @@
           <input id="event-date-debut" type="date" required>
         </label>
         <label>
-          Date de fin
-          <input id="event-date-fin" type="date" required>
+          Date de fin (optionnel, = date de début si vide)
+          <input id="event-date-fin" type="date">
         </label>
         <label>
           Heure de début
           <input id="event-heure-debut" type="time" required>
         </label>
         <label>
-          Heure de fin
-          <input id="event-heure-fin" type="time" required>
+          Heure de fin (optionnel, = heure de début si vide)
+          <input id="event-heure-fin" type="time">
         </label>
         <label>
-          Lieu
-          <input id="event-lieu" type="text" required>
+          Lieu (optionnel)
+          <input id="event-lieu" type="text">
         </label>
         <label>
           Commentaire

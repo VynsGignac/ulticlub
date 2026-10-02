@@ -47,6 +47,15 @@ function buildFilterRow(filters, activeId, onSelect) {
   return filterRow;
 }
 
+// Regroupe un ou plusieurs controles de filtre dans un bandeau fixe en haut de la fenetre modale
+// (comme une ligne figee), pour qu'ils restent visibles pendant qu'on scrolle la liste en dessous.
+function wrapSticky(...elements) {
+  const sticky = document.createElement('div');
+  sticky.className = 'sticky-filters';
+  for (const el of elements) sticky.appendChild(el);
+  return sticky;
+}
+
 // --- Gestion membre ------------------------------------------------
 // Fusionne les anciens boutons "Gerer membre" / "Valider membre" / "Ajouter membre du bureau" en
 // une seule liste filtrable. Cliquer sur un membre (n'importe ou sur sa ligne) affiche sa fiche
@@ -81,12 +90,12 @@ async function renderClubMembersManage() {
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
 
-  wrapper.appendChild(buildFilterRow([
+  wrapper.appendChild(wrapSticky(buildFilterRow([
     { id: 'tous', label: 'Tous' },
     { id: 'bureau', label: 'Bureau' },
     { id: 'responsables', label: 'Responsables' },
     { id: 'non-valides', label: 'Non validés' },
-  ], clubMembersFilter, (filterId) => { clubMembersFilter = filterId; renderClubMembersManage(); }));
+  ], clubMembersFilter, (filterId) => { clubMembersFilter = filterId; renderClubMembersManage(); })));
 
   const filtered = members.filter((m) => {
     if (clubMembersFilter === 'bureau') return m.role_membre_bureau;
@@ -167,13 +176,13 @@ async function renderClubAdminList() {
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
 
-  wrapper.appendChild(buildFilterRow([
+  const filterRow = buildFilterRow([
     { id: 'tous', label: 'Tous' },
     { id: 'sans-licence', label: 'Sans licence à jour' },
   ], clubAdminFilterNoLicence ? 'sans-licence' : 'tous', (filterId) => {
     clubAdminFilterNoLicence = filterId === 'sans-licence';
     renderClubAdminList();
-  }));
+  });
 
   const detteFilterLabel = document.createElement('label');
   detteFilterLabel.textContent = 'Dette supérieure à';
@@ -188,7 +197,8 @@ async function renderClubAdminList() {
     renderClubAdminList();
   });
   detteFilterLabel.appendChild(detteFilterInput);
-  wrapper.appendChild(detteFilterLabel);
+
+  wrapper.appendChild(wrapSticky(filterRow, detteFilterLabel));
 
   const filtered = (members || []).filter((m) => {
     if (clubAdminFilterNoLicence && m.licence_a_jour) return false;
@@ -438,13 +448,13 @@ async function renderClubEventsList() {
   newButton.addEventListener('click', openClubEventCreate);
   wrapper.appendChild(newButton);
 
-  wrapper.appendChild(buildFilterRow([
+  wrapper.appendChild(wrapSticky(buildFilterRow([
     { id: 'tous', label: 'Tous' },
     { id: 'bureau', label: 'Bureau uniquement' },
   ], clubEventsFilterBureauOnly ? 'bureau' : 'tous', (filterId) => {
     clubEventsFilterBureauOnly = filterId === 'bureau';
     renderClubEventsList();
-  }));
+  })));
 
   const filtered = (events || []).filter((e) => !clubEventsFilterBureauOnly || e.bureau_uniquement);
 
