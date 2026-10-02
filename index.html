@@ -226,6 +226,19 @@
     gap: 8px;
     width: 100%;
   }
+  /* Regroupe un bandeau de filtres fixe (voir .sticky-filters) et la liste qu'il surplombe dans un
+     seul conteneur SANS espacement entre les deux (gap: 0) -- le gap habituel de .panel entre ses
+     enfants laisserait sinon une bande transparente juste sous le bandeau, par laquelle la liste
+     defilant en dessous resterait visible/semblerait "deborder" par-dessus (constate sur appareil
+     reel : un negative margin pour compenser le gap du parent s'est avere peu fiable selon les
+     moteurs de rendu, d'ou ce conteneur dedie plutot qu'un correctif au bandeau lui-meme).
+  */
+  .list-with-sticky-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+  }
   /* Regroupe filter-row et tout autre controle de filtre (ex. le champ "Dette superieure a" dans
      Administratif) pour qu'ils restent fixes ensemble en haut de la fenetre pendant le defilement
      de la liste en dessous -- comme une ligne figee. */
@@ -238,12 +251,7 @@
     flex-direction: column;
     gap: 10px;
     width: 100%;
-    padding: 10px 0 24px;
-    /* Le parent (.panel) espace ses enfants avec gap: 12px -- sans compensation, cet espace reste
-       transparent juste sous le bandeau et laisse voir la liste qui defile en dessous "deborder"
-       par-dessus. Le margin negatif annule ce gap, et le padding-bottom (12px de plus que prevu)
-       restitue le meme espacement visuel mais a l'interieur du fond opaque du bandeau. */
-    margin-bottom: -12px;
+    padding: 10px 0 12px;
     border-bottom: 1px solid #1f2731;
   }
   .filter-chip {

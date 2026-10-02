@@ -47,13 +47,22 @@ function buildFilterRow(filters, activeId, onSelect) {
   return filterRow;
 }
 
-// Regroupe un ou plusieurs controles de filtre dans un bandeau fixe en haut de la fenetre modale
-// (comme une ligne figee), pour qu'ils restent visibles pendant qu'on scrolle la liste en dessous.
-function wrapSticky(...elements) {
+// Regroupe un bandeau de filtres fixe (un ou plusieurs controles, ex. filter-row + un champ de
+// saisie) et la liste qu'il surplombe, dans un conteneur SANS espacement entre les deux -- sinon le
+// gap habituel de .panel entre ses enfants laisserait une bande transparente juste sous le bandeau,
+// par laquelle la liste defilant en dessous resterait visible (voir .list-with-sticky-header dans
+// index.html). Le bandeau reste fixe en haut de la fenetre modale pendant le scroll, comme une
+// ligne figee.
+function groupStickyList(filterElements, listEl) {
   const sticky = document.createElement('div');
   sticky.className = 'sticky-filters';
-  for (const el of elements) sticky.appendChild(el);
-  return sticky;
+  for (const el of filterElements) sticky.appendChild(el);
+
+  const group = document.createElement('div');
+  group.className = 'list-with-sticky-header';
+  group.appendChild(sticky);
+  group.appendChild(listEl);
+  return group;
 }
 
 // --- Gestion membre ------------------------------------------------
@@ -90,12 +99,12 @@ async function renderClubMembersManage() {
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
 
-  wrapper.appendChild(wrapSticky(buildFilterRow([
+  const filterRow = buildFilterRow([
     { id: 'tous', label: 'Tous' },
     { id: 'bureau', label: 'Bureau' },
     { id: 'responsables', label: 'Responsables' },
     { id: 'non-valides', label: 'Non validés' },
-  ], clubMembersFilter, (filterId) => { clubMembersFilter = filterId; renderClubMembersManage(); })));
+  ], clubMembersFilter, (filterId) => { clubMembersFilter = filterId; renderClubMembersManage(); });
 
   const filtered = members.filter((m) => {
     if (clubMembersFilter === 'bureau') return m.role_membre_bureau;
@@ -150,7 +159,7 @@ async function renderClubMembersManage() {
       listEl.appendChild(li);
     }
   }
-  wrapper.appendChild(listEl);
+  wrapper.appendChild(groupStickyList([filterRow], listEl));
 
   contentEl.innerHTML = '';
   contentEl.appendChild(wrapper);
@@ -198,8 +207,6 @@ async function renderClubAdminList() {
   });
   detteFilterLabel.appendChild(detteFilterInput);
 
-  wrapper.appendChild(wrapSticky(filterRow, detteFilterLabel));
-
   const filtered = (members || []).filter((m) => {
     if (clubAdminFilterNoLicence && m.licence_a_jour) return false;
     if (clubAdminFilterDetteMin !== null && !(Number(m.dette) > clubAdminFilterDetteMin)) return false;
@@ -221,7 +228,7 @@ async function renderClubAdminList() {
       listEl.appendChild(li);
     }
   }
-  wrapper.appendChild(listEl);
+  wrapper.appendChild(groupStickyList([filterRow, detteFilterLabel], listEl));
 
   contentEl.innerHTML = '';
   contentEl.appendChild(wrapper);
@@ -448,13 +455,13 @@ async function renderClubEventsList() {
   newButton.addEventListener('click', openClubEventCreate);
   wrapper.appendChild(newButton);
 
-  wrapper.appendChild(wrapSticky(buildFilterRow([
+  const filterRow = buildFilterRow([
     { id: 'tous', label: 'Tous' },
     { id: 'bureau', label: 'Bureau uniquement' },
   ], clubEventsFilterBureauOnly ? 'bureau' : 'tous', (filterId) => {
     clubEventsFilterBureauOnly = filterId === 'bureau';
     renderClubEventsList();
-  })));
+  });
 
   const filtered = (events || []).filter((e) => !clubEventsFilterBureauOnly || e.bureau_uniquement);
 
@@ -471,7 +478,7 @@ async function renderClubEventsList() {
       listEl.appendChild(li);
     }
   }
-  wrapper.appendChild(listEl);
+  wrapper.appendChild(groupStickyList([filterRow], listEl));
 
   contentEl.innerHTML = '';
   contentEl.appendChild(wrapper);
