@@ -238,7 +238,12 @@
     flex-direction: column;
     gap: 10px;
     width: 100%;
-    padding: 10px 0 12px;
+    padding: 10px 0 24px;
+    /* Le parent (.panel) espace ses enfants avec gap: 12px -- sans compensation, cet espace reste
+       transparent juste sous le bandeau et laisse voir la liste qui defile en dessous "deborder"
+       par-dessus. Le margin negatif annule ce gap, et le padding-bottom (12px de plus que prevu)
+       restitue le meme espacement visuel mais a l'interieur du fond opaque du bandeau. */
+    margin-bottom: -12px;
     border-bottom: 1px solid #1f2731;
   }
   .filter-chip {
