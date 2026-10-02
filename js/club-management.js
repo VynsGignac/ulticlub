@@ -431,10 +431,14 @@ async function handleClubTeamCreate(event) {
 // --- Evenement club ----------------------------------------------------
 // Liste de tous les evenements du club (les plus proches d'abord), filtrable sur "bureau
 // uniquement". Le bouton "Nouvel événement" ouvre le formulaire de creation (voir
-// js/club-event-create.js). Cliquer sur un evenement affiche qui a confirme sa presence (si
-// "demander confirmation" est coche pour cet evenement).
+// js/club-event-create.js). Presentee en 2 colonnes (liste a gauche / detail de l'evenement
+// selectionne a droite, voir .club-events-split dans index.html) plutot qu'en navigation
+// liste -> detail -> retour : cliquer sur un evenement met juste a jour le volet de droite, sans
+// changer d'ecran. Le detail affiche qui a confirme sa presence (si "demander confirmation" est
+// coche pour cet evenement).
 
 let clubEventsFilterBureauOnly = false;
+let clubEventsSelectedId = null;
 
 async function renderClubEventsList() {
   const contentEl = showModal('Événement club');
@@ -446,7 +450,7 @@ async function renderClubEventsList() {
     .order('date_debut', { ascending: true });
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  wrapper.className = 'panel panel-wide';
 
   const newButton = document.createElement('button');
   newButton.type = 'button';
@@ -473,35 +477,69 @@ async function renderClubEventsList() {
     for (const evt of filtered) {
       const li = document.createElement('li');
       const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
-      li.textContent = `${evt.nom} — ${dateLabel}` + (evt.bureau_uniquement ? ' (bureau)' : '');
-      li.addEventListener('click', () => renderClubEventDetail(evt));
+      const nameEl = document.createElement('span');
+      nameEl.className = 'club-events-split-item-name';
+      nameEl.textContent = evt.nom;
+      const metaEl = document.createElement('span');
+      metaEl.className = 'club-events-split-item-meta';
+      metaEl.textContent = dateLabel + (evt.bureau_uniquement ? ' · bureau' : '');
+      li.appendChild(nameEl);
+      li.appendChild(metaEl);
+      li.classList.toggle('selected', evt.id === clubEventsSelectedId);
+      li.addEventListener('click', () => {
+        clubEventsSelectedId = evt.id;
+        renderClubEventsList();
+      });
       listEl.appendChild(li);
     }
   }
-  wrapper.appendChild(groupStickyList([filterRow], listEl));
+
+  const listColumn = document.createElement('div');
+  listColumn.className = 'club-events-split-list';
+  listColumn.appendChild(groupStickyList([filterRow], listEl));
+
+  const detailColumn = document.createElement('div');
+  detailColumn.className = 'club-events-split-detail';
+
+  const splitEl = document.createElement('div');
+  splitEl.className = 'club-events-split';
+  splitEl.appendChild(listColumn);
+  splitEl.appendChild(detailColumn);
+  wrapper.appendChild(splitEl);
 
   contentEl.innerHTML = '';
   contentEl.appendChild(wrapper);
+
+  const selectedEvent = filtered.find((e) => e.id === clubEventsSelectedId);
+  if (selectedEvent) {
+    renderClubEventDetailInto(detailColumn, selectedEvent);
+  } else {
+    detailColumn.innerHTML = '<p class="club-events-split-detail-placeholder">Sélectionne un événement dans la liste.</p>';
+  }
 }
 
-async function renderClubEventDetail(evt) {
-  const contentEl = showModal(evt.nom);
+async function renderClubEventDetailInto(container, evt) {
+  container.innerHTML = '<p class="message">Chargement...</p>';
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  const detail = document.createElement('div');
+
+  const title = document.createElement('h3');
+  title.className = 'club-events-split-detail-title';
+  title.textContent = evt.nom;
+  detail.appendChild(title);
 
   const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
   const meta = document.createElement('p');
   meta.className = 'communication-meta';
   meta.textContent = [dateLabel, evt.heure_debut ? evt.heure_debut.slice(0, 5) : '', evt.lieu, evt.bureau_uniquement ? 'bureau uniquement' : '']
     .filter(Boolean).join(' · ');
-  wrapper.appendChild(meta);
+  detail.appendChild(meta);
 
   if (!evt.demande_confirmation) {
     const note = document.createElement('p');
     note.className = 'message';
     note.textContent = 'Cet événement ne demande pas de confirmation de présence.';
-    wrapper.appendChild(note);
+    detail.appendChild(note);
   } else {
     const [{ data: members }, { data: confirmations }] = await Promise.all([
       client.from('club_members').select('user_id').eq('club_id', currentGestionClubId),
@@ -521,18 +559,11 @@ async function renderClubEventDetail(evt) {
       li.classList.toggle('highlight', response === true);
       listEl.appendChild(li);
     }
-    wrapper.appendChild(listEl);
+    detail.appendChild(listEl);
   }
 
-  const backButton = document.createElement('button');
-  backButton.type = 'button';
-  backButton.className = 'link';
-  backButton.textContent = 'Retour';
-  backButton.addEventListener('click', renderClubEventsList);
-  wrapper.appendChild(backButton);
-
-  contentEl.innerHTML = '';
-  contentEl.appendChild(wrapper);
+  container.innerHTML = '';
+  container.appendChild(detail);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

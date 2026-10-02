@@ -552,6 +552,58 @@
     border: none;
   }
 
+  /* Evenement club : liste a gauche / detail de l'evenement selectionne a droite, plutot qu'un
+     ecran de detail separe avec un bouton Retour -- inspire d'un panneau liste+detail classique.
+     Volontairement serre meme sur telephone etroit (choix assume plutot qu'adapte a la largeur). */
+  .panel-wide {
+    max-width: 100%;
+  }
+  .club-events-split {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    align-items: flex-start;
+  }
+  .club-events-split-list {
+    flex: 0 0 42%;
+    min-width: 0;
+  }
+  .club-events-split-list .club-results li {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .club-events-split-item-name {
+    font-size: 0.9em;
+    overflow-wrap: break-word;
+  }
+  .club-events-split-item-meta {
+    font-size: 0.75em;
+    color: #8a96a3;
+  }
+  .club-events-split-list .club-results li.selected {
+    border-color: #3b82f6;
+    background: #1e2a3a;
+  }
+  .club-events-split-detail {
+    flex: 1;
+    min-width: 0;
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .club-events-split-detail-title {
+    margin: 0 0 8px;
+    font-size: 1em;
+  }
+  .club-events-split-detail-placeholder {
+    color: #8a96a3;
+    text-align: center;
+    font-size: 0.85em;
+  }
+
   label {
     font-size: 0.85em;
     color: #8a97a4;
