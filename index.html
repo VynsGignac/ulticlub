@@ -244,14 +244,19 @@
      de la liste en dessous -- comme une ligne figee. */
   .sticky-filters {
     position: sticky;
-    top: 0;
+    /* #app-modal-body a son propre padding-top (16px) : ce padding, porte par l'element qui
+       scrolle lui-meme, reste visible comme une bande non couverte au-dessus d'un enfant sticky
+       avec top:0 -- constate sur appareil reel, un reste de la ligne precedente y apparaissait.
+       On decale le point d'accroche de -16px (jusqu'au vrai bord du viewport) et on agrandit
+       d'autant le padding-top du bandeau pour qu'il couvre toujours la meme zone en bas. */
+    top: -16px;
     z-index: 5;
     background: #10151a;
     display: flex;
     flex-direction: column;
     gap: 10px;
     width: 100%;
-    padding: 10px 0 12px;
+    padding: 26px 0 12px;
     border-bottom: 1px solid #1f2731;
   }
   .filter-chip {
