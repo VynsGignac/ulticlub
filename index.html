@@ -244,19 +244,14 @@
      de la liste en dessous -- comme une ligne figee. */
   .sticky-filters {
     position: sticky;
-    /* #app-modal-body a son propre padding-top (16px) : ce padding, porte par l'element qui
-       scrolle lui-meme, reste visible comme une bande non couverte au-dessus d'un enfant sticky
-       avec top:0 -- constate sur appareil reel, un reste de la ligne precedente y apparaissait.
-       On decale le point d'accroche de -16px (jusqu'au vrai bord du viewport) et on agrandit
-       d'autant le padding-top du bandeau pour qu'il couvre toujours la meme zone en bas. */
-    top: -16px;
+    top: 0;
     z-index: 5;
     background: #10151a;
     display: flex;
     flex-direction: column;
     gap: 10px;
     width: 100%;
-    padding: 26px 0 12px;
+    padding: 10px 0 12px;
     border-bottom: 1px solid #1f2731;
   }
   .filter-chip {
@@ -437,7 +432,12 @@
     white-space: nowrap;
   }
   .app-modal-body {
-    padding: 16px 20px 24px;
+    /* Pas de padding-top ici volontairement : un padding porte par l'element qui scrolle
+       lui-meme n'est jamais couvert par un enfant sticky avec top:0 (ca laisse en permanence
+       une bande non couverte au-dessus, par laquelle le contenu defilant restait visible -- voir
+       .sticky-filters). L'espacement du haut est reporte sur le contenu lui-meme (form/.panel,
+       ou #app-modal-body > .club-results pour les quelques listes affichees sans .panel). */
+    padding: 0 20px 24px;
     overflow-y: auto;
     flex: 1;
     display: flex;
@@ -504,6 +504,14 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-top: 16px;
+  }
+  /* Restitue le meme espacement en haut pour les quelques listes affichees sans .panel autour
+     (voir js/saison.js et js/team-detail.js) -- uniquement quand la liste est directement collee
+     en haut de la fenetre modale, pas quand elle est deja a l'interieur d'un .panel (le selecteur
+     d'enfant direct exclut ce cas, qui a deja son propre espacement via .panel ci-dessus). */
+  #app-modal-body > .club-results {
+    padding-top: 16px;
   }
 
   .club-results {
