@@ -369,28 +369,20 @@
   .app-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
+    background: #10151a;
     z-index: 90;
   }
   .app-modal-panel {
-    background: #161c25;
     width: 100%;
-    max-width: 480px;
-    max-height: 85vh;
-    border-radius: 16px 16px 0 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
   }
   .app-modal-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    padding: 16px 12px 16px 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid #1f2731;
     flex: 0 0 auto;
   }
@@ -398,20 +390,27 @@
     margin: 0;
     font-size: 1.1em;
     text-align: left;
+    flex: 1;
   }
   .app-modal-close {
     background: transparent;
     border: none;
-    color: #8a97a4;
-    font-size: 1.3em;
+    color: #3b82f6;
+    font-size: 1em;
+    font-weight: 600;
     line-height: 1;
-    padding: 8px 10px;
+    padding: 4px 4px 4px 0;
     cursor: pointer;
+    white-space: nowrap;
   }
   .app-modal-body {
     padding: 16px 20px 24px;
     overflow-y: auto;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
   }
 
   .floating-fab {
@@ -944,10 +943,6 @@
       <div id="communications-content" class="team-detail-content"></div>
     </div>
 
-    <div id="tab-content-member-profile" class="tab-content-team-detail" style="display: none;">
-      <div id="member-profile-content" class="team-detail-content"></div>
-    </div>
-
     <button type="button" id="communications-fab" class="floating-fab" aria-label="Communications">
       ✉️
       <span id="communications-fab-badge" class="fab-badge" style="display: none;"></span>
@@ -956,8 +951,8 @@
     <div id="app-modal-overlay" class="app-modal-overlay" style="display: none;">
       <div class="app-modal-panel">
         <div class="app-modal-header">
+          <button type="button" id="app-modal-close" class="app-modal-close" aria-label="Retour">‹ Retour</button>
           <h2 id="app-modal-title"></h2>
-          <button type="button" id="app-modal-close" class="app-modal-close" aria-label="Fermer">✕</button>
         </div>
         <div id="app-modal-body" class="app-modal-body"></div>
       </div>

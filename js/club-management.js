@@ -49,7 +49,10 @@ function buildFilterRow(filters, activeId, onSelect) {
 
 // --- Gestion membre ------------------------------------------------
 // Fusionne les anciens boutons "Gerer membre" / "Valider membre" / "Ajouter membre du bureau" en
-// une seule liste filtrable.
+// une seule liste filtrable. Cliquer sur un membre (n'importe ou sur sa ligne) affiche sa fiche
+// profil ; une case a cocher dediee gere le statut bureau, et un bouton "Valider" gere les
+// adhesions en attente -- les deux controles arretent la propagation du clic pour ne pas ouvrir le
+// profil par erreur en les actionnant.
 
 let clubMembersFilter = 'tous';
 
@@ -67,17 +70,6 @@ async function fetchClubMembersWithRoles() {
   }
 
   return (members || []).map((m) => ({ ...m, isResponsable: responsableIds.has(m.user_id) }));
-}
-
-// Comportement du clic : un membre non valide est valide ; un membre deja valide bascule son statut
-// membre du bureau. Les deux actions etaient avant deux boutons separes.
-async function handleClubMemberRowClick(member) {
-  if (!member.valide) {
-    await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
-  } else {
-    await client.from('club_members').update({ role_membre_bureau: !member.role_membre_bureau }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
-  }
-  renderClubMembersManage();
 }
 
 async function renderClubMembersManage() {
@@ -109,16 +101,43 @@ async function renderClubMembersManage() {
     listEl.innerHTML = '<li class="empty">Aucun membre pour ce filtre.</li>';
   } else {
     for (const member of filtered) {
-      const tags = [];
-      if (!member.valide) tags.push('non validé');
-      if (member.isResponsable) tags.push('responsable');
-      if (member.role_membre_bureau) tags.push('bureau');
-
       const li = document.createElement('li');
-      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-      if (tags.length) li.appendChild(document.createTextNode(` (${tags.join(', ')})`));
-      li.classList.toggle('highlight', tags.length > 0);
-      li.addEventListener('click', () => handleClubMemberRowClick(member));
+      li.className = 'debt-row';
+      li.addEventListener('click', () => openMemberProfile(member.user_id, renderClubMembersManage));
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+      if (member.isResponsable) nameSpan.textContent += ' (responsable)';
+      li.appendChild(nameSpan);
+
+      if (!member.valide) {
+        const validateButton = document.createElement('button');
+        validateButton.type = 'button';
+        validateButton.className = 'action-button';
+        validateButton.textContent = 'Valider';
+        validateButton.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+          renderClubMembersManage();
+        });
+        li.appendChild(validateButton);
+      } else {
+        const checkboxLabel = document.createElement('label');
+        checkboxLabel.className = 'checkbox-label';
+        checkboxLabel.style.marginTop = '0';
+        checkboxLabel.addEventListener('click', (event) => event.stopPropagation());
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = !!member.role_membre_bureau;
+        checkbox.addEventListener('change', async () => {
+          await client.from('club_members').update({ role_membre_bureau: checkbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+          member.role_membre_bureau = checkbox.checked;
+        });
+        checkboxLabel.appendChild(checkbox);
+        checkboxLabel.appendChild(document.createTextNode('Bureau'));
+        li.appendChild(checkboxLabel);
+      }
+
       listEl.appendChild(li);
     }
   }

@@ -3,16 +3,19 @@
 // liste de membres de l'app (equipe, club, evenements, dette...). Les champs email/telephone/
 // adresse/date de naissance ne sont affiches que si leur case "visible par les membres hors du
 // bureau" est cochee -- sauf pour un membre du bureau du club actif, qui voit toujours tout.
-// Pas d'onglet dedie dans #app-tabs : s'ouvre en overlay par-dessus l'onglet courant (meme
-// mecanique que js/communications.js), avec un bouton "Retour" qui y revient.
+// S'affiche dans la fenetre modale partagee (voir js/modal.js), pas dans un onglet dedie. Le bouton
+// "Retour" revient a l'ecran precedent : s'il s'agissait d'une liste affichee dans la meme fenetre
+// (ex. Gestion membre), passer cette liste en second argument de openMemberProfile() pour y revenir
+// directement ; sinon la fenetre se ferme simplement.
 // ============================================================
 
-let tabBeforeMemberProfile = null;
-let pendingMemberProfileUserId = null;
+let memberProfileReturnFn = null;
 
 // Utilise par les listes de membres dont le clic sur la ligne declenche deja une autre action
 // (ajouter, valider, basculer un role...) : le nom reste cliquable pour voir le profil sans
-// declencher cette action (stopPropagation), le reste de la ligne garde son comportement.
+// declencher cette action (stopPropagation), le reste de la ligne garde son comportement. Ces
+// listes n'ont pas connaissance de leur propre fonction de rendu ici, donc pas de "retour a la
+// liste" dans ce cas precis -- Retour ferme simplement la fenetre.
 function createMemberNameElement(userId, label) {
   const span = document.createElement('span');
   span.textContent = label;
@@ -24,21 +27,22 @@ function createMemberNameElement(userId, label) {
   return span;
 }
 
-function openMemberProfile(userId) {
-  tabBeforeMemberProfile = currentTabId;
-  pendingMemberProfileUserId = userId;
-  selectTab('member-profile');
+function openMemberProfile(userId, returnFn) {
+  memberProfileReturnFn = typeof returnFn === 'function' ? returnFn : null;
+  renderMemberProfile(userId);
 }
 
 function closeMemberProfile() {
-  selectTab(tabBeforeMemberProfile || 'calendrier');
+  if (memberProfileReturnFn) {
+    memberProfileReturnFn();
+  } else {
+    closeModal();
+  }
 }
 
-async function renderMemberProfileTab() {
-  const contentEl = document.getElementById('member-profile-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+async function renderMemberProfile(targetUserId) {
+  const contentEl = showModal('Profil');
 
-  const targetUserId = pendingMemberProfileUserId;
   const user = await requireUser();
 
   const [{ data: targetProfile }, { data: viewerProfile }] = await Promise.all([

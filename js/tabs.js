@@ -26,7 +26,6 @@ const CUSTOM_TAB_CONTAINERS = {
   'club-event-create': { containerId: 'tab-content-club-event-create', render: renderClubEventCreateTab },
   profil: { containerId: 'tab-content-profil', render: renderProfilTab },
   communications: { containerId: 'tab-content-communications', render: renderCommunicationsTab },
-  'member-profile': { containerId: 'tab-content-member-profile', render: renderMemberProfileTab },
 };
 
 // Dernier onglet reellement selectionne dans #app-tabs (utilise par le bouton flottant
