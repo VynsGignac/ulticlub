@@ -480,6 +480,12 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    width: 100%;
+  }
+  /* Seule la liste de recherche de club (avant connexion) reste volontairement compacte, affichee
+     sous un champ de recherche plutot que plein ecran -- toutes les autres listes (Gestion club,
+     Saison, detail d'equipe...) doivent prendre toute la hauteur disponible de leur conteneur. */
+  #club-results {
     max-height: 240px;
     overflow-y: auto;
   }
@@ -800,60 +806,6 @@
         <button type="button" id="club-action-create-team" class="action-button">Créer une équipe</button>
         <button type="button" id="club-action-events" class="action-button">Événement club</button>
       </div>
-    </div>
-
-    <div id="tab-content-club-event-create" class="tab-content-event-create" style="display: none;">
-      <h2>Créer un événement</h2>
-      <form id="club-event-create-form" class="panel">
-        <label>
-          Nom de l'événement
-          <input id="club-event-nom" type="text" required>
-        </label>
-        <label>
-          Date de début
-          <input id="club-event-date-debut" type="date" required>
-        </label>
-        <label>
-          Date de fin
-          <input id="club-event-date-fin" type="date" required>
-        </label>
-        <label>
-          Heure de début
-          <input id="club-event-heure-debut" type="time" required>
-        </label>
-        <label>
-          Heure de fin
-          <input id="club-event-heure-fin" type="time" required>
-        </label>
-        <label>
-          Lieu
-          <input id="club-event-lieu" type="text" required>
-        </label>
-        <label>
-          Commentaire
-          <textarea id="club-event-commentaire" rows="3"></textarea>
-        </label>
-        <label class="checkbox-label">
-          <input id="club-event-cyclique" type="checkbox">
-          Cyclique (toutes les semaines)
-        </label>
-        <label id="club-event-derniere-occurrence-label" style="display: none;">
-          Date de dernière occurrence
-          <input id="club-event-derniere-occurrence" type="date">
-        </label>
-        <label class="checkbox-label">
-          <input id="club-event-demande-confirmation" type="checkbox">
-          Demander confirmation
-        </label>
-        <label class="checkbox-label">
-          <input id="club-event-bureau-uniquement" type="checkbox">
-          Bureau uniquement
-        </label>
-        <p id="club-event-create-info" class="message"></p>
-        <p id="club-event-create-error" class="message error"></p>
-        <button type="submit">Créer l'événement</button>
-        <button type="button" id="club-event-create-back" class="link">Retour</button>
-      </form>
     </div>
 
     <div id="tab-content-profil" class="tab-content-profil" style="display: none;">

@@ -1,26 +1,106 @@
 // ============================================================
-// Creation d'un evenement pour tout le club (ouvert depuis le bouton "Creer un evenement" dans
-// l'onglet Gestion club -- voir js/club-management.js). Equivalent de js/event-create.js mais
-// insere dans club_events (visible par tous les membres du club, pas seulement une equipe). Pas
-// d'onglet dedie dans #app-tabs : la vue s'affiche directement, avec un bouton "Retour" qui revient
-// a Gestion club.
+// Creation d'un evenement pour tout le club (ouvert depuis le bouton "Nouvel evenement" dans la
+// liste "Evenement club" -- voir js/club-management.js). Equivalent de js/event-create.js mais
+// insere dans club_events (visible par tous les membres du club, pas seulement une equipe).
+// Construit dynamiquement a chaque ouverture (comme renderClubTeamCreate) et affiche dans la
+// fenetre modale partagee (voir js/modal.js) au lieu d'un onglet separe -- cliquer sur "Nouvel
+// evenement" reste dans la meme fenetre plutot que d'en ouvrir une autre. Le "Retour" revient a la
+// liste des evenements, dans la meme fenetre.
 // ============================================================
 
 function openClubEventCreate() {
-  selectTab('club-event-create');
+  const contentEl = showModal('Créer un événement');
+  contentEl.innerHTML = '';
+  contentEl.appendChild(buildClubEventCreateForm());
 }
 
-function renderClubEventCreateTab() {
-  document.getElementById('club-event-create-form').reset();
-  document.getElementById('club-event-derniere-occurrence-label').style.display = 'none';
-  setMessage(document.getElementById('club-event-create-error'), '');
-  setMessage(document.getElementById('club-event-create-info'), '');
-}
+function buildClubEventCreateForm() {
+  const form = document.createElement('form');
+  form.className = 'panel';
 
-function toggleClubEventCycliqueField() {
-  const isCyclique = document.getElementById('club-event-cyclique').checked;
-  document.getElementById('club-event-derniere-occurrence-label').style.display = isCyclique ? '' : 'none';
-  if (!isCyclique) document.getElementById('club-event-derniere-occurrence').value = '';
+  const addField = (id, labelText, type) => {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = type;
+    input.id = id;
+    input.required = true;
+    label.appendChild(input);
+    form.appendChild(label);
+    return input;
+  };
+
+  addField('club-event-nom', 'Nom de l’événement', 'text');
+  addField('club-event-date-debut', 'Date de début', 'date');
+  addField('club-event-date-fin', 'Date de fin', 'date');
+  addField('club-event-heure-debut', 'Heure de début', 'time');
+  addField('club-event-heure-fin', 'Heure de fin', 'time');
+  addField('club-event-lieu', 'Lieu', 'text');
+
+  const commentLabel = document.createElement('label');
+  commentLabel.textContent = 'Commentaire';
+  const commentArea = document.createElement('textarea');
+  commentArea.id = 'club-event-commentaire';
+  commentArea.rows = 3;
+  commentLabel.appendChild(commentArea);
+  form.appendChild(commentLabel);
+
+  const addCheckbox = (id, labelText) => {
+    const label = document.createElement('label');
+    label.className = 'checkbox-label';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = id;
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(labelText));
+    form.appendChild(label);
+    return checkbox;
+  };
+
+  const cycliqueCheckbox = addCheckbox('club-event-cyclique', 'Cyclique (toutes les semaines)');
+
+  const derniereLabel = document.createElement('label');
+  derniereLabel.id = 'club-event-derniere-occurrence-label';
+  derniereLabel.style.display = 'none';
+  derniereLabel.textContent = 'Date de dernière occurrence';
+  const derniereInput = document.createElement('input');
+  derniereInput.type = 'date';
+  derniereInput.id = 'club-event-derniere-occurrence';
+  derniereLabel.appendChild(derniereInput);
+  form.appendChild(derniereLabel);
+
+  cycliqueCheckbox.addEventListener('change', () => {
+    derniereLabel.style.display = cycliqueCheckbox.checked ? '' : 'none';
+    if (!cycliqueCheckbox.checked) derniereInput.value = '';
+  });
+
+  addCheckbox('club-event-demande-confirmation', 'Demander confirmation');
+  addCheckbox('club-event-bureau-uniquement', 'Bureau uniquement');
+
+  const infoEl = document.createElement('p');
+  infoEl.id = 'club-event-create-info';
+  infoEl.className = 'message';
+  const errorEl = document.createElement('p');
+  errorEl.id = 'club-event-create-error';
+  errorEl.className = 'message error';
+  form.appendChild(infoEl);
+  form.appendChild(errorEl);
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.textContent = 'Créer l’événement';
+  form.appendChild(submitButton);
+
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = 'Retour';
+  backButton.addEventListener('click', renderClubEventsList);
+  form.appendChild(backButton);
+
+  form.addEventListener('submit', handleClubEventCreate);
+
+  return form;
 }
 
 async function handleClubEventCreate(event) {
@@ -62,7 +142,9 @@ async function handleClubEventCreate(event) {
       return;
     }
 
-    document.getElementById('club-event-create-form').reset();
+    // Reste sur le formulaire (reinitialise) plutot que de revenir a la liste : on peut enchainer
+    // la creation de plusieurs evenements sans rouvrir la fenetre a chaque fois.
+    event.target.reset();
     document.getElementById('club-event-derniere-occurrence-label').style.display = 'none';
     setMessage(infoEl, 'Événement créé.');
   } catch (err) {
@@ -72,12 +154,3 @@ async function handleClubEventCreate(event) {
     submitButton.disabled = false;
   }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('club-event-cyclique').addEventListener('change', toggleClubEventCycliqueField);
-  document.getElementById('club-event-create-form').addEventListener('submit', handleClubEventCreate);
-  document.getElementById('club-event-create-back').addEventListener('click', () => {
-    selectTab('gestion-club');
-    renderClubEventsList();
-  });
-});

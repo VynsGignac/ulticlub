@@ -152,6 +152,7 @@ async function renderClubMembersManage() {
 // membre permet de modifier les deux.
 
 let clubAdminFilterNoLicence = false;
+let clubAdminFilterDetteMin = null;
 
 async function renderClubAdminList() {
   const contentEl = showModal('Administratif');
@@ -174,7 +175,26 @@ async function renderClubAdminList() {
     renderClubAdminList();
   }));
 
-  const filtered = (members || []).filter((m) => !clubAdminFilterNoLicence || !m.licence_a_jour);
+  const detteFilterLabel = document.createElement('label');
+  detteFilterLabel.textContent = 'Dette supérieure à';
+  const detteFilterInput = document.createElement('input');
+  detteFilterInput.type = 'number';
+  detteFilterInput.step = '0.01';
+  detteFilterInput.placeholder = 'Ex. 20';
+  if (clubAdminFilterDetteMin !== null) detteFilterInput.value = clubAdminFilterDetteMin;
+  detteFilterInput.addEventListener('change', () => {
+    const value = parseFloat(detteFilterInput.value);
+    clubAdminFilterDetteMin = Number.isFinite(value) ? value : null;
+    renderClubAdminList();
+  });
+  detteFilterLabel.appendChild(detteFilterInput);
+  wrapper.appendChild(detteFilterLabel);
+
+  const filtered = (members || []).filter((m) => {
+    if (clubAdminFilterNoLicence && m.licence_a_jour) return false;
+    if (clubAdminFilterDetteMin !== null && !(Number(m.dette) > clubAdminFilterDetteMin)) return false;
+    return true;
+  });
 
   const listEl = document.createElement('ul');
   listEl.className = 'club-results';
