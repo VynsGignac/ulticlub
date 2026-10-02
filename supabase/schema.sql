@@ -525,6 +525,12 @@ alter table public.club_events drop constraint if exists club_events_cyclique_ch
 alter table public.club_events add constraint club_events_cyclique_check
   check (not cyclique or date_derniere_occurrence is not null);
 
+-- Case "Bureau uniquement" a la creation (voir js/club-event-create.js) : sert pour l'instant de
+-- filtre dans la liste "Evenement club" (voir js/club-management.js). Ne restreint pas encore la
+-- visibilite de l'evenement dans le calendrier/Saison des membres non-bureau -- a faire plus tard
+-- si besoin.
+alter table public.club_events add column if not exists bureau_uniquement boolean not null default false;
+
 alter table public.club_events enable row level security;
 
 drop policy if exists "Les membres du club lisent les evenements du club" on public.club_events;

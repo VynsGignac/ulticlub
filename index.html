@@ -220,6 +220,26 @@
     max-width: 360px;
   }
 
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .filter-chip {
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    color: #8a97a4;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85em;
+  }
+  .filter-chip.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+    font-weight: 600;
+  }
   .debt-row {
     display: flex;
     align-items: center;
@@ -231,21 +251,6 @@
     width: 100px;
     text-align: right;
     flex: 0 0 auto;
-  }
-
-  .floating-save-button {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #3b82f6;
-    color: white;
-    font-weight: 600;
-    padding: 14px 36px;
-    border-radius: 999px;
-    border: none;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
-    z-index: 95;
   }
 
   .communication-body {
@@ -791,17 +796,11 @@
     <div id="tab-content-gestion-club" class="tab-content-team-detail" style="display: none;">
       <h2 id="club-detail-title"></h2>
       <div class="team-detail-actions panel">
-        <button type="button" id="club-action-members" class="action-button">Gérer membre</button>
-        <button type="button" id="club-action-validate-members" class="action-button">Valider membre</button>
+        <button type="button" id="club-action-members-manage" class="action-button">Gestion membre</button>
+        <button type="button" id="club-action-admin" class="action-button">Administratif</button>
         <button type="button" id="club-action-create-team" class="action-button">Créer une équipe</button>
-        <button type="button" id="club-action-create-event" class="action-button">Créer un événement</button>
-        <button type="button" id="club-action-view-events" class="action-button">Voir les événements</button>
-        <button type="button" id="club-action-add-bureau" class="action-button">Ajouter membre du bureau</button>
-        <button type="button" id="club-action-manage-debt" class="action-button">Gérer dette</button>
-        <button type="button" id="club-action-validate-licence" class="action-button">Valider licence</button>
-        <button type="button" id="club-action-communication" class="action-button">Communication</button>
+        <button type="button" id="club-action-events" class="action-button">Événement club</button>
       </div>
-      <button type="button" id="club-debt-save-button" class="floating-save-button" style="display: none;">Valider</button>
     </div>
 
     <div id="tab-content-club-event-create" class="tab-content-event-create" style="display: none;">
@@ -846,6 +845,10 @@
         <label class="checkbox-label">
           <input id="club-event-demande-confirmation" type="checkbox">
           Demander confirmation
+        </label>
+        <label class="checkbox-label">
+          <input id="club-event-bureau-uniquement" type="checkbox">
+          Bureau uniquement
         </label>
         <p id="club-event-create-info" class="message"></p>
         <p id="club-event-create-error" class="message error"></p>

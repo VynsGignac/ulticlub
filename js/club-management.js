@@ -1,35 +1,21 @@
 // ============================================================
-// Onglet Gestion club (reserve aux membres du bureau) : equivalent du detail d'equipe mais a
-// l'echelle de tout le club actif au lieu d'une seule equipe. Chaque action ouvre son contenu dans
-// la fenetre modale partagee (voir js/modal.js) plutot que sous les boutons -- plus visible et plus
-// pratique a faire defiler sur telephone qu'un contenu pousse en bas de l'ecran.
-// - Gerer membre (etait "Afficher la liste des membres") : liste tous les membres du club.
-// - Valider membre (etait "Ajouter des membres") : confirme les membres qui ont rejoint le club
-//   via la recherche (partis "non valides", voir js/club.js) -- pas d'ajout direct d'un nouvel
-//   utilisateur, juste la validation de ceux qui ont deja demande a rejoindre.
-// - Ajouter membre du bureau : bascule le role membre du bureau parmi les membres du club.
-// Pas de "Gerer les responsables" ici : les responsables se gerent desormais par equipe (choisis a
-// la creation par le bureau, ou par un autre responsable de cette equipe -- voir js/team-detail.js).
-// - Creer un evenement : ouvre un onglet dedie (voir js/club-event-create.js), visible dans le
-//   calendrier de tout le club au lieu d'une seule equipe.
-// - Gerer dette : liste tous les membres avec leur dette, modifiable en ligne, un bouton flottant
-//   en bas de l'ecran valide toutes les modifications en une fois (reste visible par-dessus la
-//   fenetre modale, voir son z-index dans index.html).
-// - Valider licence : liste tous les membres avec une case a cocher "licence a jour", modifiable
-//   immediatement au clic (pas de bouton de sauvegarde, contrairement a la dette).
-// - Creer une equipe : la creation d'equipe est cote bureau (pas encadrant) -- le bureau choisit
-//   qui en devient responsable parmi les membres du club, voir handleClubTeamCreate ci-dessous.
-// - Communication : ouvre le meme panneau que l'icone flottante "communications", visible dans
-//   tous les onglets (voir js/communications.js).
-// Pas d'equivalent a "Gerer les selections" : ca n'a pas de sens a l'echelle du club entier.
+// Onglet Gestion club (reserve aux membres du bureau) : 4 boutons, chacun ouvrant son contenu dans
+// la fenetre modale partagee (voir js/modal.js).
+// - Gestion membre : liste de tous les membres, filtrable (bureau / responsables d'equipe / non
+//   valides). Cliquer sur un membre non valide le valide ; cliquer sur un membre valide bascule son
+//   statut membre du bureau.
+// - Administratif : liste de tous les membres, filtrable (sans licence a jour). Cliquer sur un
+//   membre ouvre son detail pour modifier sa dette et sa licence.
+// - Creer une equipe : le bureau choisit qui en devient responsable parmi les membres du club.
+// - Evenement club : liste de tous les evenements du club, filtrable (bureau uniquement), avec un
+//   bouton pour en creer un nouveau (voir js/club-event-create.js).
+// "Communication" reste accessible via l'icone flottante (voir js/communications.js), plus depuis
+// cet onglet -- la liste de boutons etait trop longue.
 // ============================================================
 
 let currentGestionClubId = null;
 let currentGestionClubNom = '';
 
-function hideClubDebtSaveButton() {
-  document.getElementById('club-debt-save-button').style.display = 'none';
-}
 
 async function renderGestionClubTab() {
   const user = await requireUser();
@@ -39,7 +25,6 @@ async function renderGestionClubTab() {
   currentGestionClubNom = document.getElementById('app-club').textContent || '';
 
   document.getElementById('club-detail-title').textContent = currentGestionClubNom;
-  hideClubDebtSaveButton();
 }
 
 async function fetchPseudosByIdForClub(userIds) {
@@ -48,224 +33,207 @@ async function fetchPseudosByIdForClub(userIds) {
   return new Map((data || []).map((p) => [p.id, p.pseudo]));
 }
 
-async function renderClubMembersList() {
-  hideClubDebtSaveButton();
-  const contentEl = showModal('Membres du club');
+function buildFilterRow(filters, activeId, onSelect) {
+  const filterRow = document.createElement('div');
+  filterRow.className = 'filter-row';
+  for (const filter of filters) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filter-chip' + (filter.id === activeId ? ' active' : '');
+    chip.textContent = filter.label;
+    chip.addEventListener('click', () => onSelect(filter.id));
+    filterRow.appendChild(chip);
+  }
+  return filterRow;
+}
+
+// --- Gestion membre ------------------------------------------------
+// Fusionne les anciens boutons "Gerer membre" / "Valider membre" / "Ajouter membre du bureau" en
+// une seule liste filtrable.
+
+let clubMembersFilter = 'tous';
+
+async function fetchClubMembersWithRoles() {
+  const [{ data: members }, { data: teams }] = await Promise.all([
+    client.from('club_members').select('user_id, role_membre_bureau, valide').eq('club_id', currentGestionClubId),
+    client.from('teams').select('id').eq('club_id', currentGestionClubId),
+  ]);
+
+  const teamIds = (teams || []).map((t) => t.id);
+  let responsableIds = new Set();
+  if (teamIds.length) {
+    const { data: managers } = await client.from('team_managers').select('user_id').in('team_id', teamIds);
+    responsableIds = new Set((managers || []).map((m) => m.user_id));
+  }
+
+  return (members || []).map((m) => ({ ...m, isResponsable: responsableIds.has(m.user_id) }));
+}
+
+// Comportement du clic : un membre non valide est valide ; un membre deja valide bascule son statut
+// membre du bureau. Les deux actions etaient avant deux boutons separes.
+async function handleClubMemberRowClick(member) {
+  if (!member.valide) {
+    await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+  } else {
+    await client.from('club_members').update({ role_membre_bureau: !member.role_membre_bureau }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+  }
+  renderClubMembersManage();
+}
+
+async function renderClubMembersManage() {
+  const contentEl = showModal('Gestion membre');
+
+  const members = await fetchClubMembersWithRoles();
+  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+
+  wrapper.appendChild(buildFilterRow([
+    { id: 'tous', label: 'Tous' },
+    { id: 'bureau', label: 'Bureau' },
+    { id: 'responsables', label: 'Responsables' },
+    { id: 'non-valides', label: 'Non validés' },
+  ], clubMembersFilter, (filterId) => { clubMembersFilter = filterId; renderClubMembersManage(); }));
+
+  const filtered = members.filter((m) => {
+    if (clubMembersFilter === 'bureau') return m.role_membre_bureau;
+    if (clubMembersFilter === 'responsables') return m.isResponsable;
+    if (clubMembersFilter === 'non-valides') return !m.valide;
+    return true;
+  });
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="empty">Aucun membre pour ce filtre.</li>';
+  } else {
+    for (const member of filtered) {
+      const tags = [];
+      if (!member.valide) tags.push('non validé');
+      if (member.isResponsable) tags.push('responsable');
+      if (member.role_membre_bureau) tags.push('bureau');
+
+      const li = document.createElement('li');
+      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+      if (tags.length) li.appendChild(document.createTextNode(` (${tags.join(', ')})`));
+      li.classList.toggle('highlight', tags.length > 0);
+      li.addEventListener('click', () => handleClubMemberRowClick(member));
+      listEl.appendChild(li);
+    }
+  }
+  wrapper.appendChild(listEl);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
+// --- Administratif ---------------------------------------------------
+// Fusionne les anciens boutons "Gerer dette" / "Valider licence" : liste filtrable, le detail d'un
+// membre permet de modifier les deux.
+
+let clubAdminFilterNoLicence = false;
+
+async function renderClubAdminList() {
+  const contentEl = showModal('Administratif');
 
   const { data: members } = await client
     .from('club_members')
-    .select('user_id, role_encadrant, role_membre_bureau, valide')
+    .select('user_id, dette, licence_a_jour')
     .eq('club_id', currentGestionClubId);
 
-  if (!members || !members.length) {
-    contentEl.innerHTML = '<ul class="club-results"><li class="empty">Aucun membre pour l’instant.</li></ul>';
-    return;
-  }
+  const pseudoById = await fetchPseudosByIdForClub((members || []).map((m) => m.user_id));
 
-  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
 
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const member of members) {
-    const tags = [];
-    if (!member.valide) tags.push('non validé');
-    if (member.role_encadrant) tags.push('encadrant');
-    if (member.role_membre_bureau) tags.push('bureau');
+  wrapper.appendChild(buildFilterRow([
+    { id: 'tous', label: 'Tous' },
+    { id: 'sans-licence', label: 'Sans licence à jour' },
+  ], clubAdminFilterNoLicence ? 'sans-licence' : 'tous', (filterId) => {
+    clubAdminFilterNoLicence = filterId === 'sans-licence';
+    renderClubAdminList();
+  }));
 
-    const li = document.createElement('li');
-    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-    if (tags.length) li.appendChild(document.createTextNode(` (${tags.join(', ')})`));
-    li.classList.toggle('highlight', tags.length > 0);
-    listEl.appendChild(li);
-  }
-  contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
-}
-
-async function validateMember(userId) {
-  await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', userId);
-  renderValidateMembers();
-}
-
-async function renderValidateMembers() {
-  hideClubDebtSaveButton();
-  const contentEl = showModal('Valider membre');
-
-  const { data: pending } = await client
-    .from('club_members')
-    .select('user_id')
-    .eq('club_id', currentGestionClubId)
-    .eq('valide', false);
-
-  if (!pending || !pending.length) {
-    contentEl.innerHTML = '<p class="message">Aucun membre en attente de validation.</p>';
-    return;
-  }
-
-  const pseudoById = await fetchPseudosByIdForClub(pending.map((m) => m.user_id));
+  const filtered = (members || []).filter((m) => !clubAdminFilterNoLicence || !m.licence_a_jour);
 
   const listEl = document.createElement('ul');
   listEl.className = 'club-results';
-  for (const member of pending) {
-    const li = document.createElement('li');
-    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-    li.addEventListener('click', () => validateMember(member.user_id));
-    listEl.appendChild(li);
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="empty">Aucun membre pour ce filtre.</li>';
+  } else {
+    for (const member of filtered) {
+      const li = document.createElement('li');
+      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
+      const detail = ` — dette : ${Number(member.dette).toFixed(2)} €` + (member.licence_a_jour ? '' : ' — licence non à jour');
+      li.appendChild(document.createTextNode(detail));
+      li.classList.toggle('highlight', !member.licence_a_jour);
+      li.addEventListener('click', () => renderClubAdminMemberDetail(member, pseudoById.get(member.user_id)));
+      listEl.appendChild(li);
+    }
   }
-  contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
-}
-
-async function toggleClubRole(userId, field, isCurrentlyOn, rerender) {
-  await client.from('club_members').update({ [field]: !isCurrentlyOn }).eq('club_id', currentGestionClubId).eq('user_id', userId);
-  rerender();
-}
-
-async function renderClubRoleToggle(title, field, tagLabel, rerender) {
-  hideClubDebtSaveButton();
-  const contentEl = showModal(title);
-
-  const { data: members } = await client
-    .from('club_members')
-    .select(`user_id, ${field}`)
-    .eq('club_id', currentGestionClubId);
-
-  if (!members || !members.length) {
-    contentEl.innerHTML = '<p class="message">Aucun membre pour l’instant.</p>';
-    return;
-  }
-
-  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const member of members) {
-    const isOn = !!member[field];
-    const li = document.createElement('li');
-    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-    if (isOn) li.appendChild(document.createTextNode(` (${tagLabel})`));
-    li.classList.toggle('highlight', isOn);
-    li.addEventListener('click', () => toggleClubRole(member.user_id, field, isOn, rerender));
-    listEl.appendChild(li);
-  }
-  contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
-}
-
-function renderAddBureauMembers() {
-  renderClubRoleToggle('Ajouter membre du bureau', 'role_membre_bureau', 'bureau', renderAddBureauMembers);
-}
-
-async function renderClubManageDebt() {
-  hideClubDebtSaveButton();
-  const contentEl = showModal('Gérer dette');
-
-  const { data: members } = await client
-    .from('club_members')
-    .select('user_id, dette')
-    .eq('club_id', currentGestionClubId);
-
-  if (!members || !members.length) {
-    contentEl.innerHTML = '<p class="message">Aucun membre pour l’instant.</p>';
-    return;
-  }
-
-  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const member of members) {
-    const li = document.createElement('li');
-    li.className = 'debt-row';
-
-    const label = createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu');
-
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.step = '0.01';
-    input.value = Number(member.dette).toFixed(2);
-    input.dataset.userId = member.user_id;
-
-    li.appendChild(label);
-    li.appendChild(input);
-    listEl.appendChild(li);
-  }
+  wrapper.appendChild(listEl);
 
   contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
-  document.getElementById('club-debt-save-button').style.display = '';
+  contentEl.appendChild(wrapper);
 }
 
-async function saveClubDebts() {
-  const saveButton = document.getElementById('club-debt-save-button');
-  const inputs = document.querySelectorAll('#app-modal-body .debt-row input');
-  saveButton.disabled = true;
+function renderClubAdminMemberDetail(member, pseudo) {
+  const contentEl = showModal(pseudo || 'Inconnu');
 
-  await Promise.all(Array.from(inputs).map((input) => client
-    .from('club_members')
-    .update({ dette: parseFloat(input.value) || 0 })
-    .eq('club_id', currentGestionClubId)
-    .eq('user_id', input.dataset.userId)));
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
 
-  saveButton.disabled = false;
-  saveButton.textContent = 'Enregistré ✓';
-  setTimeout(() => { saveButton.textContent = 'Valider'; }, 1500);
-}
+  const detteLabel = document.createElement('label');
+  detteLabel.textContent = 'Dette';
+  const detteInput = document.createElement('input');
+  detteInput.type = 'number';
+  detteInput.step = '0.01';
+  detteInput.value = Number(member.dette).toFixed(2);
+  detteLabel.appendChild(detteInput);
+  wrapper.appendChild(detteLabel);
 
-async function toggleMemberLicence(userId, isCurrentlyOn) {
-  await client.from('club_members').update({ licence_a_jour: !isCurrentlyOn }).eq('club_id', currentGestionClubId).eq('user_id', userId);
-  renderClubValidateLicence();
-}
+  const saveButton = document.createElement('button');
+  saveButton.type = 'button';
+  saveButton.textContent = 'Enregistrer la dette';
+  saveButton.addEventListener('click', async () => {
+    const dette = parseFloat(detteInput.value) || 0;
+    await client.from('club_members').update({ dette }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+    member.dette = dette;
+    saveButton.textContent = 'Enregistré ✓';
+    setTimeout(() => { saveButton.textContent = 'Enregistrer la dette'; }, 1500);
+  });
+  wrapper.appendChild(saveButton);
 
-// Contrairement a "Gerer dette", chaque case se sauvegarde immediatement au clic -- pas de bouton
-// de validation groupee, la valeur est un simple booleen.
-async function renderClubValidateLicence() {
-  hideClubDebtSaveButton();
-  const contentEl = showModal('Valider licence');
+  const licenceLabel = document.createElement('label');
+  licenceLabel.className = 'checkbox-label';
+  const licenceCheckbox = document.createElement('input');
+  licenceCheckbox.type = 'checkbox';
+  licenceCheckbox.checked = !!member.licence_a_jour;
+  licenceCheckbox.addEventListener('change', async () => {
+    await client.from('club_members').update({ licence_a_jour: licenceCheckbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+    member.licence_a_jour = licenceCheckbox.checked;
+  });
+  licenceLabel.appendChild(licenceCheckbox);
+  licenceLabel.appendChild(document.createTextNode('Licence à jour'));
+  wrapper.appendChild(licenceLabel);
 
-  const { data: members } = await client
-    .from('club_members')
-    .select('user_id, licence_a_jour')
-    .eq('club_id', currentGestionClubId);
-
-  if (!members || !members.length) {
-    contentEl.innerHTML = '<p class="message">Aucun membre pour l’instant.</p>';
-    return;
-  }
-
-  const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const member of members) {
-    const li = document.createElement('li');
-    li.className = 'debt-row';
-
-    li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-
-    const checkboxLabel = document.createElement('label');
-    checkboxLabel.className = 'checkbox-label';
-    checkboxLabel.style.marginTop = '0';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = !!member.licence_a_jour;
-    checkbox.addEventListener('change', () => toggleMemberLicence(member.user_id, member.licence_a_jour));
-    checkboxLabel.appendChild(checkbox);
-    checkboxLabel.appendChild(document.createTextNode('Licence à jour'));
-    li.appendChild(checkboxLabel);
-
-    listEl.appendChild(li);
-  }
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = 'Retour';
+  backButton.addEventListener('click', renderClubAdminList);
+  wrapper.appendChild(backButton);
 
   contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
+  contentEl.appendChild(wrapper);
 }
 
-// Creation d'une equipe cote bureau : mêmes 4 champs structures que l'ancienne creation cote
-// encadrant (voir js/team-management.js, desormais lecture seule), plus le choix du membre qui en
-// devient responsable.
+// --- Creer une equipe ------------------------------------------------
+// Mêmes 4 champs structures que l'ancienne creation cote encadrant (voir js/team-management.js,
+// desormais lecture seule), plus le choix du membre qui en devient responsable.
+
 async function renderClubTeamCreate() {
-  hideClubDebtSaveButton();
   const contentEl = showModal('Créer une équipe');
 
   const { data: members } = await client
@@ -404,38 +372,63 @@ async function handleClubTeamCreate(event) {
   }
 }
 
-// Liste des evenements du club (les plus proches d'abord) : cliquer sur l'un d'eux affiche qui a
-// confirme sa presence (uniquement si "demander confirmation" est coche pour cet evenement).
+// --- Evenement club ----------------------------------------------------
+// Liste de tous les evenements du club (les plus proches d'abord), filtrable sur "bureau
+// uniquement". Le bouton "Nouvel événement" ouvre le formulaire de creation (voir
+// js/club-event-create.js). Cliquer sur un evenement affiche qui a confirme sa presence (si
+// "demander confirmation" est coche pour cet evenement).
+
+let clubEventsFilterBureauOnly = false;
+
 async function renderClubEventsList() {
-  hideClubDebtSaveButton();
-  const contentEl = showModal('Événements du club');
+  const contentEl = showModal('Événement club');
 
   const { data: events } = await client
     .from('club_events')
-    .select('id, nom, date_debut, heure_debut, lieu, demande_confirmation')
+    .select('id, nom, date_debut, heure_debut, lieu, demande_confirmation, bureau_uniquement')
     .eq('club_id', currentGestionClubId)
     .order('date_debut', { ascending: true });
 
-  if (!events || !events.length) {
-    contentEl.innerHTML = '<p class="message">Aucun événement pour l’instant.</p>';
-    return;
-  }
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+
+  const newButton = document.createElement('button');
+  newButton.type = 'button';
+  newButton.className = 'action-button';
+  newButton.textContent = 'Nouvel événement';
+  newButton.addEventListener('click', openClubEventCreate);
+  wrapper.appendChild(newButton);
+
+  wrapper.appendChild(buildFilterRow([
+    { id: 'tous', label: 'Tous' },
+    { id: 'bureau', label: 'Bureau uniquement' },
+  ], clubEventsFilterBureauOnly ? 'bureau' : 'tous', (filterId) => {
+    clubEventsFilterBureauOnly = filterId === 'bureau';
+    renderClubEventsList();
+  }));
+
+  const filtered = (events || []).filter((e) => !clubEventsFilterBureauOnly || e.bureau_uniquement);
 
   const listEl = document.createElement('ul');
   listEl.className = 'club-results';
-  for (const evt of events) {
-    const li = document.createElement('li');
-    const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
-    li.textContent = `${evt.nom} — ${dateLabel}`;
-    li.addEventListener('click', () => renderClubEventDetail(evt));
-    listEl.appendChild(li);
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="empty">Aucun événement pour ce filtre.</li>';
+  } else {
+    for (const evt of filtered) {
+      const li = document.createElement('li');
+      const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
+      li.textContent = `${evt.nom} — ${dateLabel}` + (evt.bureau_uniquement ? ' (bureau)' : '');
+      li.addEventListener('click', () => renderClubEventDetail(evt));
+      listEl.appendChild(li);
+    }
   }
+  wrapper.appendChild(listEl);
+
   contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
+  contentEl.appendChild(wrapper);
 }
 
 async function renderClubEventDetail(evt) {
-  hideClubDebtSaveButton();
   const contentEl = showModal(evt.nom);
 
   const wrapper = document.createElement('div');
@@ -444,7 +437,8 @@ async function renderClubEventDetail(evt) {
   const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
   const meta = document.createElement('p');
   meta.className = 'communication-meta';
-  meta.textContent = [dateLabel, evt.heure_debut ? evt.heure_debut.slice(0, 5) : '', evt.lieu].filter(Boolean).join(' · ');
+  meta.textContent = [dateLabel, evt.heure_debut ? evt.heure_debut.slice(0, 5) : '', evt.lieu, evt.bureau_uniquement ? 'bureau uniquement' : '']
+    .filter(Boolean).join(' · ');
   wrapper.appendChild(meta);
 
   if (!evt.demande_confirmation) {
@@ -486,14 +480,8 @@ async function renderClubEventDetail(evt) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('club-action-members').addEventListener('click', renderClubMembersList);
-  document.getElementById('club-action-validate-members').addEventListener('click', renderValidateMembers);
-  document.getElementById('club-action-create-event').addEventListener('click', openClubEventCreate);
-  document.getElementById('club-action-view-events').addEventListener('click', renderClubEventsList);
-  document.getElementById('club-action-add-bureau').addEventListener('click', renderAddBureauMembers);
-  document.getElementById('club-action-manage-debt').addEventListener('click', renderClubManageDebt);
-  document.getElementById('club-debt-save-button').addEventListener('click', saveClubDebts);
-  document.getElementById('club-action-validate-licence').addEventListener('click', renderClubValidateLicence);
+  document.getElementById('club-action-members-manage').addEventListener('click', renderClubMembersManage);
+  document.getElementById('club-action-admin').addEventListener('click', renderClubAdminList);
   document.getElementById('club-action-create-team').addEventListener('click', renderClubTeamCreate);
-  document.getElementById('club-action-communication').addEventListener('click', openCommunications);
+  document.getElementById('club-action-events').addEventListener('click', renderClubEventsList);
 });

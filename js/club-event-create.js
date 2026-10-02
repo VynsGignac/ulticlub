@@ -50,6 +50,7 @@ async function handleClubEventCreate(event) {
     cyclique,
     date_derniere_occurrence: cyclique ? derniereOccurrence : null,
     demande_confirmation: document.getElementById('club-event-demande-confirmation').checked,
+    bureau_uniquement: document.getElementById('club-event-bureau-uniquement').checked,
   };
 
   submitButton.disabled = true;
@@ -64,8 +65,9 @@ async function handleClubEventCreate(event) {
     document.getElementById('club-event-create-form').reset();
     document.getElementById('club-event-derniere-occurrence-label').style.display = 'none';
     setMessage(infoEl, 'Événement créé.');
-  } catch {
-    setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
+  } catch (err) {
+    console.error('handleClubEventCreate: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);
   } finally {
     submitButton.disabled = false;
   }
@@ -74,5 +76,8 @@ async function handleClubEventCreate(event) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-event-cyclique').addEventListener('change', toggleClubEventCycliqueField);
   document.getElementById('club-event-create-form').addEventListener('submit', handleClubEventCreate);
-  document.getElementById('club-event-create-back').addEventListener('click', () => selectTab('gestion-club'));
+  document.getElementById('club-event-create-back').addEventListener('click', () => {
+    selectTab('gestion-club');
+    renderClubEventsList();
+  });
 });
