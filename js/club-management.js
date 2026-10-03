@@ -213,36 +213,12 @@ async function renderClubMembersManage() {
 async function renderClubMemberDetailInto(container, member) {
   container.innerHTML = '<p class="message">Chargement...</p>';
 
-  const { targetProfile, isBureau } = await fetchMemberProfileData(member.user_id);
+  const { targetProfile, isBureau, roleLabels } = await fetchMemberProfileData(member.user_id);
 
   const detail = document.createElement('div');
   detail.className = 'member-detail-panel';
   detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
-
-  // Bureau et administrateur sont aussi consideres comme des roles a part entiere, au meme titre
-  // que "responsable d'equipe" -- ce dernier precise desormais la ou les equipes concernees plutot
-  // qu'un simple intitule generique.
-  const roleLabels = [];
-  if (member.role_membre_bureau) roleLabels.push('Membre du bureau');
-  if (targetProfile && targetProfile.is_admin) roleLabels.push('Administrateur');
-  if (member.managedTeamNames && member.managedTeamNames.length) {
-    roleLabels.push(`Responsable d’équipe (${member.managedTeamNames.join(', ')})`);
-  }
-  if (roleLabels.length) {
-    const roleHeading = document.createElement('p');
-    roleHeading.className = 'communication-meta';
-    roleHeading.textContent = 'Rôle :';
-    detail.appendChild(roleHeading);
-
-    const roleList = document.createElement('ul');
-    roleList.className = 'role-list';
-    for (const label of roleLabels) {
-      const li = document.createElement('li');
-      li.textContent = label;
-      roleList.appendChild(li);
-    }
-    detail.appendChild(roleList);
-  }
+  appendRoleListEl(detail, roleLabels);
 
   const detteLabel = document.createElement('label');
   detteLabel.textContent = 'Dette';

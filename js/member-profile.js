@@ -40,10 +40,59 @@ function closeMemberProfile() {
   }
 }
 
-// Recupere le profil d'un membre et determine si le viewer (l'utilisateur connecte) est membre du
-// bureau de son club actif (qui voit alors tous les champs, meme ceux marques non visibles).
-// Partage entre la fiche profil plein ecran ci-dessous et le volet de detail de Gestion membre
-// (voir js/club-management.js) qui integre ces memes informations sans ouvrir un autre ecran.
+// Roles d'un membre (bureau, administrateur, responsable d'equipe -- avec la ou les equipes
+// concernees) dans un club donne. Partage par TOUS les endroits qui affichent le profil d'un
+// membre (fiche plein ecran ci-dessous, volet de detail de Gestion membre, liste des joueurs d'une
+// equipe...) pour que ces roles restent coherents partout, pas juste dans Gestion membre.
+async function fetchMemberRoleLabels(targetUserId, clubId) {
+  if (!clubId) return [];
+
+  const [{ data: membership }, { data: targetProfile }, { data: teams }] = await Promise.all([
+    client.from('club_members').select('role_membre_bureau').eq('user_id', targetUserId).eq('club_id', clubId).maybeSingle(),
+    client.from('profiles').select('is_admin').eq('id', targetUserId).single(),
+    client.from('teams').select('id, nom').eq('club_id', clubId),
+  ]);
+
+  const roleLabels = [];
+  if (membership && membership.role_membre_bureau) roleLabels.push('Membre du bureau');
+  if (targetProfile && targetProfile.is_admin) roleLabels.push('Administrateur');
+
+  const teamIds = (teams || []).map((t) => t.id);
+  if (teamIds.length) {
+    const { data: managerRows } = await client.from('team_managers').select('team_id').eq('user_id', targetUserId).in('team_id', teamIds);
+    const teamNameById = new Map((teams || []).map((t) => [t.id, t.nom]));
+    const managedNames = (managerRows || []).map((r) => teamNameById.get(r.team_id)).filter(Boolean);
+    if (managedNames.length) roleLabels.push(`Responsable d’équipe (${managedNames.join(', ')})`);
+  }
+
+  return roleLabels;
+}
+
+// Ajoute, si non vide, le titre "Rôle :" suivi d'une liste a puces (un element par role) -- meme
+// presentation partout (Gestion membre, fiche profil, liste des joueurs d'une equipe...).
+function appendRoleListEl(container, roleLabels) {
+  if (!roleLabels.length) return;
+
+  const heading = document.createElement('p');
+  heading.className = 'communication-meta';
+  heading.textContent = 'Rôle :';
+  container.appendChild(heading);
+
+  const list = document.createElement('ul');
+  list.className = 'role-list';
+  for (const label of roleLabels) {
+    const li = document.createElement('li');
+    li.textContent = label;
+    list.appendChild(li);
+  }
+  container.appendChild(list);
+}
+
+// Recupere le profil d'un membre, determine si le viewer (l'utilisateur connecte) est membre du
+// bureau de son club actif (qui voit alors tous les champs, meme ceux marques non visibles), et ses
+// roles dans ce meme club. Partage entre la fiche profil plein ecran ci-dessous et tous les volets
+// de detail qui integrent ces memes informations sans ouvrir un autre ecran (Gestion membre, liste
+// des joueurs d'une equipe...).
 async function fetchMemberProfileData(targetUserId) {
   const user = await requireUser();
 
@@ -56,8 +105,9 @@ async function fetchMemberProfileData(targetUserId) {
     client.from('profiles').select('active_club_id').eq('id', user.id).single(),
   ]);
 
-  let isBureau = false;
   const clubId = viewerProfile ? viewerProfile.active_club_id : null;
+
+  let isBureau = false;
   if (clubId) {
     const { data: membership } = await client
       .from('club_members')
@@ -68,7 +118,9 @@ async function fetchMemberProfileData(targetUserId) {
     isBureau = !!(membership && membership.role_membre_bureau);
   }
 
-  return { targetProfile, isBureau };
+  const roleLabels = await fetchMemberRoleLabels(targetUserId, clubId);
+
+  return { targetProfile, isBureau, roleLabels };
 }
 
 function buildMemberProfileFieldsEl(targetProfile, isBureau) {
@@ -110,11 +162,12 @@ function buildMemberProfileFieldsEl(targetProfile, isBureau) {
 async function renderMemberProfile(targetUserId) {
   const contentEl = showModal('Profil');
 
-  const { targetProfile, isBureau } = await fetchMemberProfileData(targetUserId);
+  const { targetProfile, isBureau, roleLabels } = await fetchMemberProfileData(targetUserId);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
   wrapper.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
+  appendRoleListEl(wrapper, roleLabels);
 
   const backButton = document.createElement('button');
   backButton.type = 'button';

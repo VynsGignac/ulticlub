@@ -144,34 +144,24 @@ async function renderTeamMembersSplitView() {
 
   const selectedMember = (members || []).find((m) => m.user_id === teamMembersSplitSelectedId);
   if (selectedMember) {
-    renderTeamMemberSplitDetailInto(detailColumn, selectedMember.user_id, managerIds.has(selectedMember.user_id));
+    renderTeamMemberSplitDetailInto(detailColumn, selectedMember.user_id);
   } else {
     detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un joueur dans la liste.</p>';
   }
 }
 
-async function renderTeamMemberSplitDetailInto(container, userId, isResponsable) {
+async function renderTeamMemberSplitDetailInto(container, userId) {
   container.innerHTML = '<p class="message">Chargement...</p>';
 
-  const { targetProfile, isBureau } = await fetchMemberProfileData(userId);
+  // fetchMemberProfileData calcule les roles (bureau, administrateur, responsable -- avec la ou
+  // les equipes concernees) dans le club actif du viewer, pas seulement pour CETTE equipe : memes
+  // informations qu'ailleurs dans l'app (Gestion membre, fiche profil), comme demande.
+  const { targetProfile, isBureau, roleLabels } = await fetchMemberProfileData(userId);
 
   const detail = document.createElement('div');
   detail.className = 'profile-detail-panel';
   detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
-
-  if (isResponsable) {
-    const roleHeading = document.createElement('p');
-    roleHeading.className = 'communication-meta';
-    roleHeading.textContent = 'Rôle :';
-    detail.appendChild(roleHeading);
-
-    const roleList = document.createElement('ul');
-    roleList.className = 'role-list';
-    const li = document.createElement('li');
-    li.textContent = 'Responsable d’équipe';
-    roleList.appendChild(li);
-    detail.appendChild(roleList);
-  }
+  appendRoleListEl(detail, roleLabels);
 
   container.innerHTML = '';
   container.appendChild(detail);
