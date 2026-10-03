@@ -42,7 +42,7 @@ function setMessage(el, message, isError) {
 async function fetchOwnProfile(userId) {
   const { data } = await client
     .from('profiles')
-    .select('pseudo, nom, prenom, telephone, adresse, date_naissance, active_club_id')
+    .select('pseudo, nom, prenom, telephone, adresse, date_naissance, active_club_id, is_admin')
     .eq('id', userId)
     .single();
   return data;

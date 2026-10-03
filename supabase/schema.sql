@@ -72,6 +72,26 @@ alter table public.profiles add column if not exists visible_telephone boolean n
 alter table public.profiles add column if not exists visible_adresse boolean not null default true;
 alter table public.profiles add column if not exists visible_date_naissance boolean not null default true;
 
+-- Compte "administrateur" : bypass toutes les verifications bureau/responsable d'equipe, sur tous
+-- les clubs, tout le temps (voir is_app_admin() plus bas, utilise par is_club_bureau() et
+-- is_team_manager()). Volontairement IRREVOCABLE depuis l'app -- aucune case a cocher nulle part ne
+-- pilote ce champ, seul un acces direct a la base (SQL Supabase) peut l'activer/desactiver. Sert de
+-- filet de securite en cas d'auto-exclusion accidentelle du bureau (role_membre_bureau decoche par
+-- erreur, plus personne pour le reactiver depuis l'app).
+alter table public.profiles add column if not exists is_admin boolean not null default false;
+
+create or replace function public.is_app_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$;
+
+grant execute on function public.is_app_admin() to authenticated;
+
 -- Ancien systeme (connexion par pseudo), abandonne au profit de la connexion par email.
 drop function if exists public.email_for_pseudo(text);
 
@@ -136,7 +156,7 @@ security definer
 set search_path = public
 stable
 as $$
-  select exists (
+  select public.is_app_admin() or exists (
     select 1 from public.club_members
     where club_id = target_club_id and user_id = auth.uid() and role_membre_bureau = true
   );
@@ -301,10 +321,7 @@ create policy "Le bureau cree une equipe dans son club"
   to authenticated
   with check (
     created_by = auth.uid()
-    and exists (
-      select 1 from public.club_members cm
-      where cm.club_id = teams.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
-    )
+    and public.is_club_bureau(teams.club_id)
   );
 
 -- Responsables d'une equipe (plusieurs possibles). Le createur d'une equipe en devient
@@ -342,7 +359,7 @@ security definer
 set search_path = public
 stable
 as $$
-  select exists (
+  select public.is_app_admin() or exists (
     select 1 from public.team_managers
     where team_id = target_team_id and user_id = auth.uid()
   );
@@ -359,8 +376,7 @@ create policy "Les encadrants gerent les responsables d'equipe (ajout)"
     public.is_team_manager(team_managers.team_id)
     or exists (
       select 1 from public.teams t
-      join public.club_members cm on cm.club_id = t.club_id
-      where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+      where t.id = team_managers.team_id and public.is_club_bureau(t.club_id)
     )
   );
 
@@ -372,8 +388,7 @@ create policy "Les encadrants gerent les responsables d'equipe (retrait)"
     public.is_team_manager(team_managers.team_id)
     or exists (
       select 1 from public.teams t
-      join public.club_members cm on cm.club_id = t.club_id
-      where t.id = team_managers.team_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+      where t.id = team_managers.team_id and public.is_club_bureau(t.club_id)
     )
   );
 
@@ -412,8 +427,7 @@ create policy "Les encadrants ajoutent des membres a l'equipe"
     public.is_team_manager(team_members.team_id)
     or exists (
       select 1 from public.teams t
-      join public.club_members cm on cm.club_id = t.club_id
-      where t.id = team_members.team_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
+      where t.id = team_members.team_id and public.is_club_bureau(t.club_id)
     )
   );
 
@@ -556,10 +570,7 @@ create policy "Le bureau cree un evenement de club"
   to authenticated
   with check (
     created_by = auth.uid()
-    and exists (
-      select 1 from public.club_members cm
-      where cm.club_id = club_events.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
-    )
+    and public.is_club_bureau(club_events.club_id)
   );
 
 -- --- Communications de club (redigees depuis Gestion club, reserve au bureau) --
@@ -592,10 +603,7 @@ create policy "Le bureau cree une communication de club"
   to authenticated
   with check (
     created_by = auth.uid()
-    and exists (
-      select 1 from public.club_members cm
-      where cm.club_id = club_communications.club_id and cm.user_id = auth.uid() and cm.role_membre_bureau = true
-    )
+    and public.is_club_bureau(club_communications.club_id)
   );
 
 -- Marqueur "derniere lecture des communications" par utilisateur et par club : sert uniquement au

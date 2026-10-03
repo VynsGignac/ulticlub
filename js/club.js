@@ -33,9 +33,12 @@ async function routeAfterLogin(userId, fallbackPseudo) {
       .single();
 
     if (membership) {
+      // is_admin donne acces a "Gestion club" meme si role_membre_bureau est faux sur cette
+      // appartenance precise -- voir supabase/schema.sql (is_app_admin, compte irrevocable depuis
+      // l'app, filet de securite en cas d'auto-exclusion accidentelle du bureau).
       enterApp(pseudo, membership.clubs.nom, {
         encadrant: membership.role_encadrant,
-        membreBureau: membership.role_membre_bureau,
+        membreBureau: membership.role_membre_bureau || !!profile.is_admin,
       });
       return;
     }

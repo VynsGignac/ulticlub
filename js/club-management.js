@@ -124,7 +124,6 @@ async function renderClubMembersManage() {
       const nameEl = document.createElement('span');
       nameEl.className = 'split-view-item-name';
       nameEl.textContent = pseudoById.get(member.user_id) || 'Inconnu';
-      if (member.isResponsable) nameEl.textContent += ' (responsable)';
       li.appendChild(nameEl);
       if (!member.valide) {
         const metaEl = document.createElement('span');
@@ -172,6 +171,13 @@ async function renderClubMemberDetailInto(container, member) {
 
   const detail = document.createElement('div');
   detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
+
+  if (member.isResponsable) {
+    const roleLine = document.createElement('p');
+    roleLine.className = 'communication-meta';
+    roleLine.textContent = 'Rôle : Responsable d’équipe';
+    detail.appendChild(roleLine);
+  }
 
   if (!member.valide) {
     const validateButton = document.createElement('button');
