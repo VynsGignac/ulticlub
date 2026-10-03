@@ -205,11 +205,156 @@ async function buildTeamMembersListEl() {
   return listEl;
 }
 
-async function renderTeamMembersList() {
-  const contentEl = showModal('Membres de l’équipe');
-  const listEl = await buildTeamMembersListEl();
+// --- Gerer les membres (responsables de CETTE equipe) -------------------------------------------
+// Fusionne les anciens ecrans "Afficher la liste des membres"/"Ajouter des membres"/"Gerer les
+// responsables" en une seule liste filtrable, en 2 colonnes (meme pattern que partout ailleurs
+// dans l'app) : regroupe les membres actuels de l'equipe ET les candidats en attente de selection
+// (toutes les selections de l'equipe confondues, peu importe la date limite). Filtres : "
+// Responsable" et "En sélection". Le volet de detail du joueur selectionne propose "Nommer
+// co-responsable"/"Retirer des co-responsables" (bascule team_managers) et "Sélectionner"/"Retirer
+// de la sélection" (bascule team_members -- "Selectionner" accepte un candidat comme joueur de
+// l'equipe). Ajouter un membre totalement nouveau (ni dans l'equipe, ni candidat) se fait via le
+// bouton "Ajouter un membre" ci-dessous, qui reutilise renderAddMembersForm plus bas.
+
+let teamManageFilter = null;
+let teamManageSelectedId = null;
+
+function openTeamMembersManage() {
+  teamManageFilter = null;
+  teamManageSelectedId = null;
+  renderTeamMembersManage();
+}
+
+async function renderTeamMembersManage() {
+  const contentEl = showModal('Gérer les membres');
+  contentEl.classList.add('no-scroll');
+
+  const [{ data: members }, { data: managers }, { data: selections }] = await Promise.all([
+    client.from('team_members').select('user_id').eq('team_id', currentTeamId),
+    client.from('team_managers').select('user_id').eq('team_id', currentTeamId),
+    client.from('team_selections').select('id').eq('team_id', currentTeamId),
+  ]);
+
+  const memberIds = new Set((members || []).map((m) => m.user_id));
+  const managerIds = new Set((managers || []).map((m) => m.user_id));
+
+  const selectionIds = (selections || []).map((s) => s.id);
+  let candidateIds = new Set();
+  if (selectionIds.length) {
+    const { data: candidatures } = await client.from('team_selection_candidatures').select('user_id').in('selection_id', selectionIds);
+    candidateIds = new Set((candidatures || []).map((c) => c.user_id));
+  }
+
+  const allIds = [...new Set([...memberIds, ...candidateIds])];
+  const pseudoById = await fetchPseudosById(allIds);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel panel-wide split-view-page';
+
+  const newMemberButton = document.createElement('button');
+  newMemberButton.type = 'button';
+  newMemberButton.className = 'action-button';
+  newMemberButton.textContent = 'Ajouter un membre';
+  newMemberButton.addEventListener('click', renderAddMembersForm);
+  wrapper.appendChild(newMemberButton);
+
+  const filterRow = buildFilterRow([
+    { id: 'responsable', label: 'Responsable' },
+    { id: 'selection', label: 'En sélection' },
+  ], teamManageFilter, (filterId) => { teamManageFilter = filterId; renderTeamMembersManage(); });
+
+  const filtered = allIds.filter((id) => {
+    if (teamManageFilter === 'responsable') return managerIds.has(id);
+    if (teamManageFilter === 'selection') return candidateIds.has(id);
+    return true;
+  });
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="empty">Aucun joueur pour ce filtre.</li>';
+  } else {
+    for (const userId of filtered) {
+      const li = document.createElement('li');
+      const nameEl = document.createElement('span');
+      nameEl.className = 'split-view-item-name';
+      nameEl.textContent = pseudoById.get(userId) || 'Inconnu';
+      li.appendChild(nameEl);
+      li.classList.toggle('selected', userId === teamManageSelectedId);
+      li.addEventListener('click', () => {
+        teamManageSelectedId = userId;
+        renderTeamMembersManage();
+      });
+      listEl.appendChild(li);
+    }
+  }
+
+  const listColumn = document.createElement('div');
+  listColumn.className = 'split-view-list';
+  listColumn.appendChild(groupStickyList([filterRow], listEl));
+
+  const detailColumn = document.createElement('div');
+  detailColumn.className = 'split-view-detail';
+
+  const splitEl = document.createElement('div');
+  splitEl.className = 'split-view';
+  splitEl.appendChild(listColumn);
+  splitEl.appendChild(detailColumn);
+  wrapper.appendChild(splitEl);
+
   contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
+  contentEl.appendChild(wrapper);
+
+  if (teamManageSelectedId && allIds.includes(teamManageSelectedId)) {
+    renderTeamManageDetailInto(detailColumn, teamManageSelectedId, {
+      isManager: managerIds.has(teamManageSelectedId),
+      isMember: memberIds.has(teamManageSelectedId),
+    });
+  } else {
+    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un joueur dans la liste.</p>';
+  }
+}
+
+async function renderTeamManageDetailInto(container, userId, { isManager, isMember }) {
+  container.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { targetProfile, isBureau, roleLabels } = await fetchMemberProfileData(userId);
+
+  const detail = document.createElement('div');
+  detail.className = 'member-detail-panel';
+  detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
+  appendRoleListEl(detail, roleLabels);
+
+  const managerButton = document.createElement('button');
+  managerButton.type = 'button';
+  managerButton.className = 'action-button';
+  managerButton.textContent = isManager ? 'Retirer des co-responsables' : 'Nommer co-responsable';
+  managerButton.addEventListener('click', async () => {
+    if (isManager) {
+      await client.from('team_managers').delete().eq('team_id', currentTeamId).eq('user_id', userId);
+    } else {
+      await client.from('team_managers').insert({ team_id: currentTeamId, user_id: userId });
+    }
+    renderTeamMembersManage();
+  });
+  detail.appendChild(managerButton);
+
+  const memberButton = document.createElement('button');
+  memberButton.type = 'button';
+  memberButton.className = 'action-button';
+  memberButton.textContent = isMember ? 'Retirer de la sélection' : 'Sélectionner';
+  memberButton.addEventListener('click', async () => {
+    if (isMember) {
+      await client.from('team_members').delete().eq('team_id', currentTeamId).eq('user_id', userId);
+    } else {
+      await client.from('team_members').insert({ team_id: currentTeamId, user_id: userId });
+    }
+    renderTeamMembersManage();
+  });
+  detail.appendChild(memberButton);
+
+  container.innerHTML = '';
+  container.appendChild(detail);
 }
 
 async function addTeamMember(userId) {
@@ -218,7 +363,7 @@ async function addTeamMember(userId) {
 }
 
 async function renderAddMembersForm() {
-  const contentEl = showModal('Ajouter des membres');
+  const contentEl = showModal('Ajouter un membre');
 
   const [{ data: clubMembers }, { data: teamMembers }] = await Promise.all([
     client.from('club_members').select('user_id').eq('club_id', currentTeamClubId),
@@ -228,65 +373,37 @@ async function renderAddMembersForm() {
   const teamMemberIds = new Set((teamMembers || []).map((m) => m.user_id));
   const candidateIds = (clubMembers || []).map((m) => m.user_id).filter((id) => !teamMemberIds.has(id));
 
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+
   if (!candidateIds.length) {
-    contentEl.innerHTML = '<p class="message">Tous les membres du club sont déjà dans l’équipe.</p>';
-    return;
-  }
-
-  const pseudoById = await fetchPseudosById(candidateIds);
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const userId of candidateIds) {
-    const li = document.createElement('li');
-    li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
-    li.addEventListener('click', () => addTeamMember(userId));
-    listEl.appendChild(li);
-  }
-  contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
-}
-
-async function toggleTeamManager(userId, isCurrentlyManager) {
-  if (isCurrentlyManager) {
-    await client.from('team_managers').delete().eq('team_id', currentTeamId).eq('user_id', userId);
+    const message = document.createElement('p');
+    message.className = 'message';
+    message.textContent = 'Tous les membres du club sont déjà dans l’équipe.';
+    wrapper.appendChild(message);
   } else {
-    await client.from('team_managers').insert({ team_id: currentTeamId, user_id: userId });
-  }
-  renderManageManagers();
-}
+    const pseudoById = await fetchPseudosById(candidateIds);
 
-// Le choix des responsables se fait parmi les membres actuels de l'equipe uniquement.
-async function renderManageManagers() {
-  const contentEl = showModal('Gérer les responsables');
-
-  const [{ data: members }, { data: managers }] = await Promise.all([
-    client.from('team_members').select('user_id').eq('team_id', currentTeamId),
-    client.from('team_managers').select('user_id').eq('team_id', currentTeamId),
-  ]);
-  const managerIds = new Set((managers || []).map((m) => m.user_id));
-
-  if (!members || !members.length) {
-    contentEl.innerHTML = '<p class="message">Aucun membre dans l’équipe pour l’instant.</p>';
-    return;
+    const listEl = document.createElement('ul');
+    listEl.className = 'club-results';
+    for (const userId of candidateIds) {
+      const li = document.createElement('li');
+      li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
+      li.addEventListener('click', () => addTeamMember(userId));
+      listEl.appendChild(li);
+    }
+    wrapper.appendChild(listEl);
   }
 
-  const userIds = members.map((m) => m.user_id);
-  const pseudoById = await fetchPseudosById(userIds);
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = 'Retour';
+  backButton.addEventListener('click', renderTeamMembersManage);
+  wrapper.appendChild(backButton);
 
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const userId of userIds) {
-    const isManager = managerIds.has(userId);
-    const li = document.createElement('li');
-    li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
-    if (isManager) li.appendChild(document.createTextNode(' (responsable)'));
-    li.classList.toggle('highlight', isManager);
-    li.addEventListener('click', () => toggleTeamManager(userId, isManager));
-    listEl.appendChild(li);
-  }
   contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
+  contentEl.appendChild(wrapper);
 }
 
 // Liste des evenements de l'equipe (les plus proches d'abord) : cliquer sur l'un d'eux affiche qui
@@ -454,9 +571,7 @@ async function renderTeamSelectionDetail(sel) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('team-action-members').addEventListener('click', renderTeamMembersList);
-  document.getElementById('team-action-add-members').addEventListener('click', renderAddMembersForm);
-  document.getElementById('team-action-managers').addEventListener('click', renderManageManagers);
+  document.getElementById('team-action-manage-members').addEventListener('click', openTeamMembersManage);
   document.getElementById('team-action-create-event').addEventListener('click', openEventCreate);
   document.getElementById('team-action-view-events').addEventListener('click', renderTeamEventsList);
   document.getElementById('team-action-selections').addEventListener('click', renderTeamSelectionsList);
