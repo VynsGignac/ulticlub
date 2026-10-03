@@ -265,6 +265,9 @@ async function renderClubAdminList() {
     renderClubAdminList();
   });
 
+  const detteFilterWrapper = document.createElement('div');
+  detteFilterWrapper.className = 'dette-filter-row';
+
   const detteFilterLabel = document.createElement('label');
   detteFilterLabel.textContent = 'Dette supérieure à';
   const detteFilterInput = document.createElement('input');
@@ -272,12 +275,24 @@ async function renderClubAdminList() {
   detteFilterInput.step = '0.01';
   detteFilterInput.placeholder = 'Ex. 20';
   if (clubAdminFilterDetteMin !== null) detteFilterInput.value = clubAdminFilterDetteMin;
-  detteFilterInput.addEventListener('change', () => {
-    const value = parseFloat(detteFilterInput.value);
-    clubAdminFilterDetteMin = Number.isFinite(value) ? value : null;
+  detteFilterLabel.appendChild(detteFilterInput);
+
+  const detteFilterToggle = document.createElement('button');
+  detteFilterToggle.type = 'button';
+  detteFilterToggle.className = 'action-button';
+  detteFilterToggle.textContent = clubAdminFilterDetteMin !== null ? 'Désactiver' : 'Activer';
+  detteFilterToggle.addEventListener('click', () => {
+    if (clubAdminFilterDetteMin !== null) {
+      clubAdminFilterDetteMin = null;
+    } else {
+      const value = parseFloat(detteFilterInput.value);
+      clubAdminFilterDetteMin = Number.isFinite(value) ? value : null;
+    }
     renderClubAdminList();
   });
-  detteFilterLabel.appendChild(detteFilterInput);
+
+  detteFilterWrapper.appendChild(detteFilterLabel);
+  detteFilterWrapper.appendChild(detteFilterToggle);
 
   const filtered = (members || []).filter((m) => {
     if (clubAdminFilterNoLicence && m.licence_a_jour) return false;
@@ -295,12 +310,7 @@ async function renderClubAdminList() {
       const nameEl = document.createElement('span');
       nameEl.className = 'split-view-item-name';
       nameEl.textContent = pseudoById.get(member.user_id) || 'Inconnu';
-      const metaEl = document.createElement('span');
-      metaEl.className = 'split-view-item-meta';
-      metaEl.textContent = `${Number(member.dette).toFixed(2)} €` + (member.licence_a_jour ? '' : ' · licence non à jour');
       li.appendChild(nameEl);
-      li.appendChild(metaEl);
-      li.classList.toggle('highlight', !member.licence_a_jour);
       li.classList.toggle('selected', member.user_id === clubAdminSelectedId);
       li.addEventListener('click', () => {
         clubAdminSelectedId = member.user_id;
@@ -312,7 +322,7 @@ async function renderClubAdminList() {
 
   const listColumn = document.createElement('div');
   listColumn.className = 'split-view-list';
-  listColumn.appendChild(groupStickyList([filterRow, detteFilterLabel], listEl));
+  listColumn.appendChild(groupStickyList([filterRow, detteFilterWrapper], listEl));
 
   const detailColumn = document.createElement('div');
   detailColumn.className = 'split-view-detail';
