@@ -353,8 +353,8 @@ async function renderClubTeamCreate() {
     return select;
   };
 
-  buildSelect('club-team-categorie', 'Catégorie', ['Open', 'Féminin', 'Mixte']);
-  buildSelect('club-team-section', 'Section', ['Junior', 'Adulte', 'Master']);
+  const categorieSelect = buildSelect('club-team-categorie', 'Catégorie', ['Open', 'Féminin', 'Mixte']);
+  const sectionSelect = buildSelect('club-team-section', 'Section', ['Junior', 'Adulte', 'Master']);
 
   const divisionLabel = document.createElement('label');
   divisionLabel.textContent = 'Division';
@@ -365,7 +365,66 @@ async function renderClubTeamCreate() {
   divisionLabel.appendChild(divisionInput);
   form.appendChild(divisionLabel);
 
-  buildSelect('club-team-surface', 'Surface', ['Outdoor', 'Indoor', 'Beach']);
+  const surfaceSelect = buildSelect('club-team-surface', 'Surface', ['Outdoor', 'Indoor', 'Beach']);
+
+  // Le nom est pre-rempli a partir des 4 champs ci-dessus ("Section Categorie Division Surface"),
+  // mais reste modifiable : des que l'utilisateur y touche lui-meme, on arrete de l'ecraser a
+  // chaque changement d'un des 4 champs (nomManuallyEdited). Une verification de disponibilite
+  // (debounce, meme pattern que la recherche de club dans js/club.js) interroge la base pour
+  // signaler un nom deja pris avant meme la soumission -- la contrainte unique cote base (23505,
+  // voir handleClubTeamCreate) reste le filet de securite en cas de course entre 2 creations.
+  let nomCheckTimer = null;
+
+  const nomLabel = document.createElement('label');
+  nomLabel.textContent = 'Nom de l’équipe';
+  const nomInput = document.createElement('input');
+  nomInput.type = 'text';
+  nomInput.id = 'club-team-nom';
+  nomInput.required = true;
+  const nomStatusEl = document.createElement('span');
+  nomStatusEl.id = 'club-team-nom-status';
+  nomStatusEl.className = 'communication-meta';
+  nomLabel.appendChild(nomInput);
+  nomLabel.appendChild(nomStatusEl);
+  form.appendChild(nomLabel);
+
+  const updateGeneratedNom = () => {
+    if (nomInput.dataset.manuallyEdited === 'true') return;
+    const parts = [sectionSelect.value, categorieSelect.value, divisionInput.value.trim(), surfaceSelect.value].filter(Boolean);
+    nomInput.value = parts.join(' ');
+    checkNomAvailability();
+  };
+
+  const checkNomAvailability = () => {
+    clearTimeout(nomCheckTimer);
+    const value = nomInput.value.trim();
+    if (!value) {
+      nomStatusEl.textContent = '';
+      return;
+    }
+    nomStatusEl.textContent = 'Vérification...';
+    nomStatusEl.classList.remove('error');
+    nomCheckTimer = setTimeout(async () => {
+      const { data } = await client.from('teams').select('id').eq('club_id', currentGestionClubId).ilike('nom', value);
+      if (nomInput.value.trim() !== value) return; // la valeur a change entre-temps
+      if (data && data.length) {
+        nomStatusEl.textContent = 'Ce nom est déjà utilisé.';
+        nomStatusEl.classList.add('error');
+      } else {
+        nomStatusEl.textContent = 'Nom disponible.';
+        nomStatusEl.classList.remove('error');
+      }
+    }, 400);
+  };
+
+  categorieSelect.addEventListener('change', updateGeneratedNom);
+  sectionSelect.addEventListener('change', updateGeneratedNom);
+  divisionInput.addEventListener('input', updateGeneratedNom);
+  surfaceSelect.addEventListener('change', updateGeneratedNom);
+  nomInput.addEventListener('input', () => {
+    nomInput.dataset.manuallyEdited = 'true';
+    checkNomAvailability();
+  });
 
   const respLabel = document.createElement('label');
   respLabel.textContent = 'Responsable de l’équipe';
@@ -414,6 +473,8 @@ async function handleClubTeamCreate(event) {
   const section = document.getElementById('club-team-section').value;
   const division = document.getElementById('club-team-division').value.trim();
   const surface = document.getElementById('club-team-surface').value;
+  const nomInput = document.getElementById('club-team-nom');
+  const nom = nomInput.value.trim();
   const responsableId = document.getElementById('club-team-responsable').value;
   const errorEl = document.getElementById('club-team-create-error');
   const infoEl = document.getElementById('club-team-create-info');
@@ -425,7 +486,7 @@ async function handleClubTeamCreate(event) {
     const user = await requireUser();
     const { data: team, error: createError } = await client
       .from('teams')
-      .insert({ categorie, section, division, surface, club_id: currentGestionClubId, created_by: user.id })
+      .insert({ categorie, section, division, surface, nom, club_id: currentGestionClubId, created_by: user.id })
       .select('id')
       .single();
 
@@ -445,6 +506,8 @@ async function handleClubTeamCreate(event) {
     }
 
     document.getElementById('club-team-create-form').reset();
+    delete nomInput.dataset.manuallyEdited;
+    document.getElementById('club-team-nom-status').textContent = '';
     setMessage(infoEl, 'Équipe créée.');
   } catch (err) {
     console.error('handleClubTeamCreate: exception', err);

@@ -240,9 +240,11 @@ create policy "Les membres d'un meme club lisent les profils de ce club"
 
 -- --- Equipes (onglet Gestion equipe, reserve aux encadrants) ---
 -- Une equipe appartient a un seul club et se definit par 4 champs obligatoires (categorie,
--- section, division, surface) ; son nom est derive automatiquement de ces champs ("Section
--- Categorie Division Surface", ex. "Adulte Open D1 Outdoor") et unique dans son club, insensible
--- a la casse (mais deux clubs peuvent chacun avoir une equipe portant le meme nom).
+-- section, division, surface). Son nom est pre-rempli a partir de ces champs ("Section Categorie
+-- Division Surface", ex. "Adulte Open D1 Outdoor") cote app (voir js/club-management.js), mais
+-- reste modifiable par l'utilisateur avant la creation -- ce n'est donc plus une colonne generee
+-- automatiquement. Unique dans son club, insensible a la casse (mais deux clubs peuvent chacun
+-- avoir une equipe portant le meme nom).
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
@@ -251,15 +253,34 @@ create table if not exists public.teams (
   section text not null,
   division text not null,
   surface text not null,
-  nom text generated always as (section || ' ' || categorie || ' ' || division || ' ' || surface) stored,
+  nom text,
   created_by uuid not null references auth.users (id),
   created_at timestamptz not null default now()
 );
 
+-- Migration pour un projet ayant deja "nom" en GENERATED ALWAYS AS (ancien comportement, derive
+-- automatiquement et non modifiable) : le convertit en colonne normale en conservant la valeur
+-- actuelle de chaque equipe existante. Sans effet si deja fait (nom est deja une colonne normale).
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'public.teams'::regclass
+      and attname = 'nom'
+      and attgenerated = 's'
+  ) then
+    drop index if exists teams_nom_unique_ci;
+    alter table public.teams rename column nom to nom_ancien_genere;
+    alter table public.teams add column nom text;
+    update public.teams set nom = nom_ancien_genere;
+    alter table public.teams drop column nom_ancien_genere;
+  end if;
+end $$;
+
 -- Migration pour un projet ayant deja la table teams sous son ancienne forme (nom en texte
 -- libre) : ajoute les 4 champs structures, les remplit avec des valeurs de repli pour les lignes
--- existantes (aucune ne devrait exister a ce stade), puis derive nom automatiquement a partir
--- d'eux -- sans effet si deja fait.
+-- existantes (aucune ne devrait exister a ce stade) -- sans effet si deja fait. Le nom existant
+-- (texte libre) est conserve tel quel pour ces lignes (coalesce ci-dessous), plutot que remplace.
 do $$
 begin
   if not exists (
@@ -281,14 +302,14 @@ begin
     alter table public.teams alter column section set not null;
     alter table public.teams alter column division set not null;
     alter table public.teams alter column surface set not null;
-
-    drop index if exists teams_nom_unique_ci;
-    alter table public.teams drop column nom;
-    alter table public.teams add column nom text generated always as (
-      section || ' ' || categorie || ' ' || division || ' ' || surface
-    ) stored;
   end if;
 end $$;
+
+-- Garantit que nom est toujours rempli (equipes creees avant l'ajout de cette colonne, ou par une
+-- des migrations ci-dessus qui la laisse nulle) avant d'exiger NOT NULL.
+update public.teams set nom = section || ' ' || categorie || ' ' || division || ' ' || surface
+where nom is null;
+alter table public.teams alter column nom set not null;
 
 alter table public.teams drop constraint if exists teams_categorie_check;
 alter table public.teams add constraint teams_categorie_check check (categorie in ('Open', 'Féminin', 'Mixte'));
