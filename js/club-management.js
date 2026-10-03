@@ -190,11 +190,20 @@ async function renderClubMemberDetailInto(container, member) {
   if (member.managedTeamNames && member.managedTeamNames.length) {
     roleLabels.push(`Responsable d’équipe (${member.managedTeamNames.join(', ')})`);
   }
-  for (const label of roleLabels) {
-    const roleLine = document.createElement('p');
-    roleLine.className = 'communication-meta';
-    roleLine.textContent = `Rôle : ${label}`;
-    detail.appendChild(roleLine);
+  if (roleLabels.length) {
+    const roleHeading = document.createElement('p');
+    roleHeading.className = 'communication-meta';
+    roleHeading.textContent = 'Rôle :';
+    detail.appendChild(roleHeading);
+
+    const roleList = document.createElement('ul');
+    roleList.className = 'role-list';
+    for (const label of roleLabels) {
+      const li = document.createElement('li');
+      li.textContent = label;
+      roleList.appendChild(li);
+    }
+    detail.appendChild(roleList);
   }
 
   if (!member.valide) {
