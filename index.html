@@ -292,7 +292,7 @@
   }
 
   .role-list {
-    margin: -4px 0 0;
+    margin: 0;
     padding-left: 20px;
     color: #8a97a4;
     font-size: 0.85em;
@@ -619,6 +619,23 @@
     border: 1px solid #2a333c;
     border-radius: 8px;
     padding: 12px;
+  }
+  .member-detail-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 100%;
+  }
+  /* Le gap ci-dessus est la seule source d'espacement voulue entre les elements du volet de
+     detail -- sans ce reset, les marges par defaut des <p>/<h2>/listes s'additionneraient au gap
+     et casseraient l'espacement regulier recherche. */
+  .member-detail-panel > * {
+    margin: 0;
+  }
+  /* Pousse le dernier element (le bouton Enregistrer) en bas du volet, meme quand le contenu
+     au-dessus ne remplit pas toute la hauteur disponible. */
+  .member-detail-panel > :last-child {
+    margin-top: auto;
   }
   .split-view-detail-title {
     margin: 0 0 8px;

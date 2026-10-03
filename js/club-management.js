@@ -212,6 +212,7 @@ async function renderClubMemberDetailInto(container, member) {
   const { targetProfile, isBureau } = await fetchMemberProfileData(member.user_id);
 
   const detail = document.createElement('div');
+  detail.className = 'member-detail-panel';
   detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
 
   // Bureau et administrateur sont aussi consideres comme des roles a part entiere, au meme titre
