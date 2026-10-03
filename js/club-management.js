@@ -1,11 +1,10 @@
 // ============================================================
-// Onglet Gestion club (reserve aux membres du bureau) : 4 boutons, chacun ouvrant son contenu dans
+// Onglet Gestion club (reserve aux membres du bureau) : 3 boutons, chacun ouvrant son contenu dans
 // la fenetre modale partagee (voir js/modal.js).
-// - Gestion membre : liste de tous les membres, filtrable (bureau / responsables d'equipe / non
-//   valides). Cliquer sur un membre non valide le valide ; cliquer sur un membre valide bascule son
-//   statut membre du bureau.
-// - Administratif : liste de tous les membres, filtrable (sans licence a jour). Cliquer sur un
-//   membre ouvre son detail pour modifier sa dette et sa licence.
+// - Gestion membre : fusionne les anciens ecrans "Gestion membre" et "Administratif" -- liste de
+//   tous les membres, filtrable (bureau / responsables d'equipe / non valides / sans licence a
+//   jour / dette superieure a X). Le volet de detail permet de valider une adhesion en attente, de
+//   modifier la dette et la licence, et de basculer le statut membre du bureau.
 // - Creer une equipe : le bureau choisit qui en devient responsable parmi les membres du club.
 // - Evenement club : liste de tous les evenements du club, filtrable (bureau uniquement), avec un
 //   bouton pour en creer un nouveau (voir js/club-event-create.js).
@@ -66,17 +65,19 @@ function groupStickyList(filterElements, listEl) {
 }
 
 // --- Gestion membre ------------------------------------------------
-// Fusionne les anciens boutons "Gerer membre" / "Valider membre" / "Ajouter membre du bureau" en
-// une seule liste filtrable, en 2 colonnes (voir Evenement club) : cliquer sur un membre affiche
-// son profil (nom, pseudo, coordonnees visibles) dans le volet de droite, avec le bouton "Valider"
-// (adhesion en attente) ou la case a cocher "Bureau" juste en dessous.
+// Fusionne les anciens ecrans "Gestion membre" et "Administratif" en une seule liste filtrable, en
+// 2 colonnes (voir Evenement club) : cliquer sur un membre affiche son profil (nom, pseudo,
+// coordonnees visibles, roles), sa dette, sa licence et son statut bureau dans le volet de droite.
+// Le bouton "Enregistrer" couvre dette + membre du bureau ensemble (un seul appel) ; "Valider" (pour
+// une adhesion en attente) et la case "Licence à jour" restent des actions immediates, separees.
 
 let clubMembersFilter = 'tous';
+let clubMembersFilterDetteMin = null;
 let clubMembersSelectedId = null;
 
 async function fetchClubMembersWithRoles() {
   const [{ data: members }, { data: teams }] = await Promise.all([
-    client.from('club_members').select('user_id, role_membre_bureau, valide').eq('club_id', currentGestionClubId),
+    client.from('club_members').select('user_id, role_membre_bureau, valide, dette, licence_a_jour').eq('club_id', currentGestionClubId),
     client.from('teams').select('id, nom').eq('club_id', currentGestionClubId),
   ]);
 
@@ -114,12 +115,44 @@ async function renderClubMembersManage() {
     { id: 'bureau', label: 'Bureau' },
     { id: 'responsables', label: 'Responsables' },
     { id: 'non-valides', label: 'Non validés' },
+    { id: 'sans-licence', label: 'Sans licence à jour' },
   ], clubMembersFilter, (filterId) => { clubMembersFilter = filterId; renderClubMembersManage(); });
 
+  const detteFilterWrapper = document.createElement('div');
+  detteFilterWrapper.className = 'dette-filter-row';
+
+  const detteFilterLabel = document.createElement('label');
+  detteFilterLabel.textContent = 'Dette supérieure à';
+  const detteFilterInput = document.createElement('input');
+  detteFilterInput.type = 'number';
+  detteFilterInput.step = '0.01';
+  detteFilterInput.placeholder = 'Ex. 20';
+  if (clubMembersFilterDetteMin !== null) detteFilterInput.value = clubMembersFilterDetteMin;
+  detteFilterLabel.appendChild(detteFilterInput);
+
+  const detteFilterToggle = document.createElement('button');
+  detteFilterToggle.type = 'button';
+  detteFilterToggle.className = 'action-button';
+  detteFilterToggle.textContent = clubMembersFilterDetteMin !== null ? 'Désactiver' : 'Activer';
+  detteFilterToggle.addEventListener('click', () => {
+    if (clubMembersFilterDetteMin !== null) {
+      clubMembersFilterDetteMin = null;
+    } else {
+      const value = parseFloat(detteFilterInput.value);
+      clubMembersFilterDetteMin = Number.isFinite(value) ? value : null;
+    }
+    renderClubMembersManage();
+  });
+
+  detteFilterWrapper.appendChild(detteFilterLabel);
+  detteFilterWrapper.appendChild(detteFilterToggle);
+
   const filtered = members.filter((m) => {
-    if (clubMembersFilter === 'bureau') return m.role_membre_bureau;
-    if (clubMembersFilter === 'responsables') return m.isResponsable;
-    if (clubMembersFilter === 'non-valides') return !m.valide;
+    if (clubMembersFilter === 'bureau' && !m.role_membre_bureau) return false;
+    if (clubMembersFilter === 'responsables' && !m.isResponsable) return false;
+    if (clubMembersFilter === 'non-valides' && m.valide) return false;
+    if (clubMembersFilter === 'sans-licence' && m.licence_a_jour) return false;
+    if (clubMembersFilterDetteMin !== null && !(Number(m.dette) > clubMembersFilterDetteMin)) return false;
     return true;
   });
 
@@ -151,7 +184,7 @@ async function renderClubMembersManage() {
 
   const listColumn = document.createElement('div');
   listColumn.className = 'split-view-list';
-  listColumn.appendChild(groupStickyList([filterRow], listEl));
+  listColumn.appendChild(groupStickyList([filterRow, detteFilterWrapper], listEl));
 
   const detailColumn = document.createElement('div');
   detailColumn.className = 'split-view-detail';
@@ -206,6 +239,31 @@ async function renderClubMemberDetailInto(container, member) {
     detail.appendChild(roleList);
   }
 
+  const detteLabel = document.createElement('label');
+  detteLabel.textContent = 'Dette';
+  const detteInput = document.createElement('input');
+  detteInput.type = 'number';
+  detteInput.step = '0.01';
+  detteInput.value = Number(member.dette).toFixed(2);
+  detteLabel.appendChild(detteInput);
+  detail.appendChild(detteLabel);
+
+  // Licence a jour reste une action immediate (comme avant), independante du bouton Enregistrer
+  // ci-dessous qui ne couvre que dette + membre du bureau.
+  const licenceLabel = document.createElement('label');
+  licenceLabel.className = 'checkbox-label';
+  const licenceCheckbox = document.createElement('input');
+  licenceCheckbox.type = 'checkbox';
+  licenceCheckbox.checked = !!member.licence_a_jour;
+  licenceCheckbox.addEventListener('change', async () => {
+    await client.from('club_members').update({ licence_a_jour: licenceCheckbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+    member.licence_a_jour = licenceCheckbox.checked;
+  });
+  licenceLabel.appendChild(licenceCheckbox);
+  licenceLabel.appendChild(document.createTextNode('Licence à jour'));
+  detail.appendChild(licenceLabel);
+
+  let bureauCheckbox = null;
   if (!member.valide) {
     const validateButton = document.createElement('button');
     validateButton.type = 'button';
@@ -219,172 +277,30 @@ async function renderClubMemberDetailInto(container, member) {
   } else {
     const checkboxLabel = document.createElement('label');
     checkboxLabel.className = 'checkbox-label';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = !!member.role_membre_bureau;
-    checkbox.addEventListener('change', async () => {
-      await client.from('club_members').update({ role_membre_bureau: checkbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
-      member.role_membre_bureau = checkbox.checked;
-    });
-    checkboxLabel.appendChild(checkbox);
+    bureauCheckbox = document.createElement('input');
+    bureauCheckbox.type = 'checkbox';
+    bureauCheckbox.checked = !!member.role_membre_bureau;
+    checkboxLabel.appendChild(bureauCheckbox);
     checkboxLabel.appendChild(document.createTextNode('Membre du bureau'));
     detail.appendChild(checkboxLabel);
   }
 
-  container.innerHTML = '';
-  container.appendChild(detail);
-}
-
-// --- Administratif ---------------------------------------------------
-// Fusionne les anciens boutons "Gerer dette" / "Valider licence" : liste filtrable a gauche, le
-// detail d'un membre (dette, licence) dans le volet de droite.
-
-let clubAdminFilterNoLicence = false;
-let clubAdminFilterDetteMin = null;
-let clubAdminSelectedId = null;
-
-async function renderClubAdminList() {
-  const contentEl = showModal('Administratif');
-  contentEl.classList.add('no-scroll');
-
-  const { data: members } = await client
-    .from('club_members')
-    .select('user_id, dette, licence_a_jour')
-    .eq('club_id', currentGestionClubId);
-
-  const pseudoById = await fetchPseudosByIdForClub((members || []).map((m) => m.user_id));
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'panel panel-wide split-view-page';
-
-  const filterRow = buildFilterRow([
-    { id: 'tous', label: 'Tous' },
-    { id: 'sans-licence', label: 'Sans licence à jour' },
-  ], clubAdminFilterNoLicence ? 'sans-licence' : 'tous', (filterId) => {
-    clubAdminFilterNoLicence = filterId === 'sans-licence';
-    renderClubAdminList();
-  });
-
-  const detteFilterWrapper = document.createElement('div');
-  detteFilterWrapper.className = 'dette-filter-row';
-
-  const detteFilterLabel = document.createElement('label');
-  detteFilterLabel.textContent = 'Dette supérieure à';
-  const detteFilterInput = document.createElement('input');
-  detteFilterInput.type = 'number';
-  detteFilterInput.step = '0.01';
-  detteFilterInput.placeholder = 'Ex. 20';
-  if (clubAdminFilterDetteMin !== null) detteFilterInput.value = clubAdminFilterDetteMin;
-  detteFilterLabel.appendChild(detteFilterInput);
-
-  const detteFilterToggle = document.createElement('button');
-  detteFilterToggle.type = 'button';
-  detteFilterToggle.className = 'action-button';
-  detteFilterToggle.textContent = clubAdminFilterDetteMin !== null ? 'Désactiver' : 'Activer';
-  detteFilterToggle.addEventListener('click', () => {
-    if (clubAdminFilterDetteMin !== null) {
-      clubAdminFilterDetteMin = null;
-    } else {
-      const value = parseFloat(detteFilterInput.value);
-      clubAdminFilterDetteMin = Number.isFinite(value) ? value : null;
-    }
-    renderClubAdminList();
-  });
-
-  detteFilterWrapper.appendChild(detteFilterLabel);
-  detteFilterWrapper.appendChild(detteFilterToggle);
-
-  const filtered = (members || []).filter((m) => {
-    if (clubAdminFilterNoLicence && m.licence_a_jour) return false;
-    if (clubAdminFilterDetteMin !== null && !(Number(m.dette) > clubAdminFilterDetteMin)) return false;
-    return true;
-  });
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  if (!filtered.length) {
-    listEl.innerHTML = '<li class="empty">Aucun membre pour ce filtre.</li>';
-  } else {
-    for (const member of filtered) {
-      const li = document.createElement('li');
-      const nameEl = document.createElement('span');
-      nameEl.className = 'split-view-item-name';
-      nameEl.textContent = pseudoById.get(member.user_id) || 'Inconnu';
-      li.appendChild(nameEl);
-      li.classList.toggle('selected', member.user_id === clubAdminSelectedId);
-      li.addEventListener('click', () => {
-        clubAdminSelectedId = member.user_id;
-        renderClubAdminList();
-      });
-      listEl.appendChild(li);
-    }
-  }
-
-  const listColumn = document.createElement('div');
-  listColumn.className = 'split-view-list';
-  listColumn.appendChild(groupStickyList([filterRow, detteFilterWrapper], listEl));
-
-  const detailColumn = document.createElement('div');
-  detailColumn.className = 'split-view-detail';
-
-  const splitEl = document.createElement('div');
-  splitEl.className = 'split-view';
-  splitEl.appendChild(listColumn);
-  splitEl.appendChild(detailColumn);
-  wrapper.appendChild(splitEl);
-
-  contentEl.innerHTML = '';
-  contentEl.appendChild(wrapper);
-
-  const selectedMember = filtered.find((m) => m.user_id === clubAdminSelectedId);
-  if (selectedMember) {
-    renderClubAdminMemberDetailInto(detailColumn, selectedMember, pseudoById.get(selectedMember.user_id));
-  } else {
-    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un membre dans la liste.</p>';
-  }
-}
-
-function renderClubAdminMemberDetailInto(container, member, pseudo) {
-  const detail = document.createElement('div');
-
-  const title = document.createElement('h3');
-  title.className = 'split-view-detail-title';
-  title.textContent = pseudo || 'Inconnu';
-  detail.appendChild(title);
-
-  const detteLabel = document.createElement('label');
-  detteLabel.textContent = 'Dette';
-  const detteInput = document.createElement('input');
-  detteInput.type = 'number';
-  detteInput.step = '0.01';
-  detteInput.value = Number(member.dette).toFixed(2);
-  detteLabel.appendChild(detteInput);
-  detail.appendChild(detteLabel);
-
+  // Enregistrer couvre dette + membre du bureau ensemble (un seul appel), contrairement a la
+  // licence (immediate) et a Valider (action distincte, pas une simple modification de champ).
   const saveButton = document.createElement('button');
   saveButton.type = 'button';
-  saveButton.textContent = 'Enregistrer la dette';
+  saveButton.textContent = 'Enregistrer';
   saveButton.addEventListener('click', async () => {
     const dette = parseFloat(detteInput.value) || 0;
-    await client.from('club_members').update({ dette }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+    const updates = { dette };
+    if (bureauCheckbox) updates.role_membre_bureau = bureauCheckbox.checked;
+    await client.from('club_members').update(updates).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
     member.dette = dette;
+    if (bureauCheckbox) member.role_membre_bureau = bureauCheckbox.checked;
     saveButton.textContent = 'Enregistré ✓';
-    setTimeout(() => { saveButton.textContent = 'Enregistrer la dette'; }, 1500);
+    setTimeout(() => { saveButton.textContent = 'Enregistrer'; }, 1500);
   });
   detail.appendChild(saveButton);
-
-  const licenceLabel = document.createElement('label');
-  licenceLabel.className = 'checkbox-label';
-  const licenceCheckbox = document.createElement('input');
-  licenceCheckbox.type = 'checkbox';
-  licenceCheckbox.checked = !!member.licence_a_jour;
-  licenceCheckbox.addEventListener('change', async () => {
-    await client.from('club_members').update({ licence_a_jour: licenceCheckbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
-    member.licence_a_jour = licenceCheckbox.checked;
-  });
-  licenceLabel.appendChild(licenceCheckbox);
-  licenceLabel.appendChild(document.createTextNode('Licence à jour'));
-  detail.appendChild(licenceLabel);
 
   container.innerHTML = '';
   container.appendChild(detail);
@@ -693,7 +609,6 @@ async function renderClubEventDetailInto(container, evt) {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('club-action-members-manage').addEventListener('click', renderClubMembersManage);
-  document.getElementById('club-action-admin').addEventListener('click', renderClubAdminList);
   document.getElementById('club-action-create-team').addEventListener('click', renderClubTeamCreate);
   document.getElementById('club-action-events').addEventListener('click', renderClubEventsList);
 });
