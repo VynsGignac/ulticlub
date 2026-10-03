@@ -63,6 +63,120 @@ async function renderTeamDetailTab() {
   }
 }
 
+// --- Liste des joueurs (lecture seule, membres du club non responsables de CETTE equipe) --------
+// Ouverte depuis l'onglet "Equipe" (voir js/team-management.js) dans la fenetre modale partagee, en
+// 2 colonnes comme Gestion membre/Evenement club : liste filtrable a gauche (seul filtre : "
+// Responsable"), profil + role du joueur selectionne a droite. Ce que voient les responsables de
+// l'equipe sera revu dans un second temps -- ils gardent pour l'instant l'ancien ecran (onglet
+// dedie avec panneau d'actions, voir openTeamDetail/renderTeamDetailTab ci-dessous).
+
+let currentSplitTeamId = null;
+let currentSplitTeamNom = '';
+let teamMembersFilterResponsable = false;
+let teamMembersSplitSelectedId = null;
+
+function openTeamMembersSplitView(teamId, teamNom) {
+  currentSplitTeamId = teamId;
+  currentSplitTeamNom = teamNom;
+  teamMembersFilterResponsable = false;
+  teamMembersSplitSelectedId = null;
+  renderTeamMembersSplitView();
+}
+
+async function renderTeamMembersSplitView() {
+  const contentEl = showModal(currentSplitTeamNom);
+  contentEl.classList.add('no-scroll');
+
+  const [{ data: members }, { data: managers }] = await Promise.all([
+    client.from('team_members').select('user_id').eq('team_id', currentSplitTeamId),
+    client.from('team_managers').select('user_id').eq('team_id', currentSplitTeamId),
+  ]);
+  const managerIds = new Set((managers || []).map((m) => m.user_id));
+  const pseudoById = await fetchPseudosById((members || []).map((m) => m.user_id));
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel panel-wide split-view-page';
+
+  const filterRow = buildFilterRow([
+    { id: 'responsable', label: 'Responsable' },
+  ], teamMembersFilterResponsable ? 'responsable' : null, (filterId) => {
+    teamMembersFilterResponsable = filterId === 'responsable';
+    renderTeamMembersSplitView();
+  });
+
+  const filtered = (members || []).filter((m) => !teamMembersFilterResponsable || managerIds.has(m.user_id));
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="empty">Aucun joueur pour ce filtre.</li>';
+  } else {
+    for (const member of filtered) {
+      const li = document.createElement('li');
+      const nameEl = document.createElement('span');
+      nameEl.className = 'split-view-item-name';
+      nameEl.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+      li.appendChild(nameEl);
+      li.classList.toggle('selected', member.user_id === teamMembersSplitSelectedId);
+      li.addEventListener('click', () => {
+        teamMembersSplitSelectedId = member.user_id;
+        renderTeamMembersSplitView();
+      });
+      listEl.appendChild(li);
+    }
+  }
+
+  const listColumn = document.createElement('div');
+  listColumn.className = 'split-view-list';
+  listColumn.appendChild(groupStickyList([filterRow], listEl));
+
+  const detailColumn = document.createElement('div');
+  detailColumn.className = 'split-view-detail';
+
+  const splitEl = document.createElement('div');
+  splitEl.className = 'split-view';
+  splitEl.appendChild(listColumn);
+  splitEl.appendChild(detailColumn);
+  wrapper.appendChild(splitEl);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+
+  const selectedMember = (members || []).find((m) => m.user_id === teamMembersSplitSelectedId);
+  if (selectedMember) {
+    renderTeamMemberSplitDetailInto(detailColumn, selectedMember.user_id, managerIds.has(selectedMember.user_id));
+  } else {
+    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un joueur dans la liste.</p>';
+  }
+}
+
+async function renderTeamMemberSplitDetailInto(container, userId, isResponsable) {
+  container.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { targetProfile, isBureau } = await fetchMemberProfileData(userId);
+
+  const detail = document.createElement('div');
+  detail.className = 'profile-detail-panel';
+  detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
+
+  if (isResponsable) {
+    const roleHeading = document.createElement('p');
+    roleHeading.className = 'communication-meta';
+    roleHeading.textContent = 'Rôle :';
+    detail.appendChild(roleHeading);
+
+    const roleList = document.createElement('ul');
+    roleList.className = 'role-list';
+    const li = document.createElement('li');
+    li.textContent = 'Responsable d’équipe';
+    roleList.appendChild(li);
+    detail.appendChild(roleList);
+  }
+
+  container.innerHTML = '';
+  container.appendChild(detail);
+}
+
 async function fetchPseudosById(userIds) {
   if (!userIds.length) return new Map();
   const { data } = await client.from('profiles').select('id, pseudo').in('id', userIds);

@@ -42,7 +42,17 @@ async function renderEquipesActuelles() {
     const li = document.createElement('li');
     li.textContent = team.nom + (team.isMine ? ' (responsable)' : '');
     li.classList.toggle('highlight', team.isMine);
-    li.addEventListener('click', () => openTeamDetail(team.id, team.nom, profile.active_club_id));
+    // Un responsable de CETTE equipe garde l'ancien ecran (onglet dedie avec panneau d'actions,
+    // voir js/team-detail.js) -- ce que voient les responsables sera revu dans un second temps.
+    // Les autres membres du club (lecture seule) ont la liste des joueurs dans la fenetre modale
+    // partagee, en 2 colonnes comme Gestion membre/Evenement club.
+    li.addEventListener('click', () => {
+      if (team.isMine) {
+        openTeamDetail(team.id, team.nom, profile.active_club_id);
+      } else {
+        openTeamMembersSplitView(team.id, team.nom);
+      }
+    });
     listEl.appendChild(li);
   }
 }

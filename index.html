@@ -637,6 +637,16 @@
   .member-detail-panel > :last-child {
     margin-top: auto;
   }
+  /* Meme espacement regulier que .member-detail-panel, pour les volets de detail en lecture seule
+     (pas de bouton a pousser en bas, ex. liste des joueurs d'une equipe). */
+  .profile-detail-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .profile-detail-panel > * {
+    margin: 0;
+  }
   .split-view-detail-title {
     margin: 0 0 8px;
     font-size: 1em;
