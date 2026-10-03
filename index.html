@@ -662,15 +662,21 @@
   }
   /* Le champ et le bouton Activer/Desactiver doivent tenir sur une seule ligne meme dans la
      colonne etroite de gauche -- l'input se contracte si besoin (min-width:0 sur le label
-     ci-dessus), le bouton garde une taille fixe compacte (icone seule, pas de texte). */
+     ci-dessus), le bouton garde une taille fixe compacte (icone seule, pas de texte). Les deux
+     ont la MEME hauteur explicite plutot que de compter sur un padding/line-height identique :
+     <input> et <button> ont des metriques de ligne par defaut legerement differentes selon les
+     moteurs de rendu, qui faisaient tomber le calcul par padding 1px a cote. */
   .dette-filter-row input {
     width: 100%;
     min-width: 0;
+    height: 44px;
+    box-sizing: border-box;
   }
   .dette-filter-toggle {
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
+    box-sizing: border-box;
     padding: 0;
     border-radius: 8px;
     background: #1a2028;
