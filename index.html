@@ -660,8 +660,28 @@
     flex: 1;
     min-width: 0;
   }
-  .dette-filter-row .action-button {
+  /* Le champ et le bouton Activer/Desactiver doivent tenir sur une seule ligne meme dans la
+     colonne etroite de gauche -- l'input se contracte si besoin (min-width:0 sur le label
+     ci-dessus), le bouton garde une taille fixe compacte (icone seule, pas de texte). */
+  .dette-filter-row input {
+    width: 100%;
+    min-width: 0;
+  }
+  .dette-filter-toggle {
     flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 8px;
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    color: #6ee787;
+    font-size: 1.2em;
+    line-height: 1;
+  }
+  .dette-filter-toggle.active {
+    color: #f87171;
+    border-color: #f87171;
   }
   .split-view-detail h2 {
     font-size: 1em;

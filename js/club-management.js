@@ -32,15 +32,18 @@ async function fetchPseudosByIdForClub(userIds) {
   return new Map((data || []).map((p) => [p.id, p.pseudo]));
 }
 
+// Pas d'option "Tous" : l'absence de filtre actif EST "Tous" (activeId === null). Cliquer sur le
+// chip deja actif le desactive (retour a "Tous") au lieu d'etre un simple choix parmi d'autres.
 function buildFilterRow(filters, activeId, onSelect) {
   const filterRow = document.createElement('div');
   filterRow.className = 'filter-row';
   for (const filter of filters) {
+    const isActive = filter.id === activeId;
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'filter-chip' + (filter.id === activeId ? ' active' : '');
+    chip.className = 'filter-chip' + (isActive ? ' active' : '');
     chip.textContent = filter.label;
-    chip.addEventListener('click', () => onSelect(filter.id));
+    chip.addEventListener('click', () => onSelect(isActive ? null : filter.id));
     filterRow.appendChild(chip);
   }
   return filterRow;
@@ -71,7 +74,7 @@ function groupStickyList(filterElements, listEl) {
 // Le bouton "Enregistrer" couvre dette + membre du bureau ensemble (un seul appel) ; "Valider" (pour
 // une adhesion en attente) et la case "Licence à jour" restent des actions immediates, separees.
 
-let clubMembersFilter = 'tous';
+let clubMembersFilter = null;
 let clubMembersFilterDetteMin = null;
 let clubMembersSelectedId = null;
 
@@ -111,7 +114,6 @@ async function renderClubMembersManage() {
   wrapper.className = 'panel panel-wide split-view-page';
 
   const filterRow = buildFilterRow([
-    { id: 'tous', label: 'Tous' },
     { id: 'bureau', label: 'Bureau' },
     { id: 'responsables', label: 'Responsables' },
     { id: 'non-valides', label: 'Non validés' },
@@ -130,10 +132,12 @@ async function renderClubMembersManage() {
   if (clubMembersFilterDetteMin !== null) detteFilterInput.value = clubMembersFilterDetteMin;
   detteFilterLabel.appendChild(detteFilterInput);
 
+  const detteFilterActive = clubMembersFilterDetteMin !== null;
   const detteFilterToggle = document.createElement('button');
   detteFilterToggle.type = 'button';
-  detteFilterToggle.className = 'action-button';
-  detteFilterToggle.textContent = clubMembersFilterDetteMin !== null ? 'Désactiver' : 'Activer';
+  detteFilterToggle.className = 'dette-filter-toggle' + (detteFilterActive ? ' active' : '');
+  detteFilterToggle.textContent = detteFilterActive ? '✕' : '✓';
+  detteFilterToggle.setAttribute('aria-label', detteFilterActive ? 'Désactiver le filtre dette' : 'Activer le filtre dette');
   detteFilterToggle.addEventListener('click', () => {
     if (clubMembersFilterDetteMin !== null) {
       clubMembersFilterDetteMin = null;
@@ -486,9 +490,8 @@ async function renderClubEventsList() {
   wrapper.appendChild(newButton);
 
   const filterRow = buildFilterRow([
-    { id: 'tous', label: 'Tous' },
     { id: 'bureau', label: 'Bureau uniquement' },
-  ], clubEventsFilterBureauOnly ? 'bureau' : 'tous', (filterId) => {
+  ], clubEventsFilterBureauOnly ? 'bureau' : null, (filterId) => {
     clubEventsFilterBureauOnly = filterId === 'bureau';
     renderClubEventsList();
   });
