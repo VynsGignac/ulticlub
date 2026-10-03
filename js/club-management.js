@@ -77,17 +77,26 @@ let clubMembersSelectedId = null;
 async function fetchClubMembersWithRoles() {
   const [{ data: members }, { data: teams }] = await Promise.all([
     client.from('club_members').select('user_id, role_membre_bureau, valide').eq('club_id', currentGestionClubId),
-    client.from('teams').select('id').eq('club_id', currentGestionClubId),
+    client.from('teams').select('id, nom').eq('club_id', currentGestionClubId),
   ]);
 
   const teamIds = (teams || []).map((t) => t.id);
-  let responsableIds = new Set();
+  const teamNameById = new Map((teams || []).map((t) => [t.id, t.nom]));
+  const managedTeamNamesByUser = new Map();
   if (teamIds.length) {
-    const { data: managers } = await client.from('team_managers').select('user_id').in('team_id', teamIds);
-    responsableIds = new Set((managers || []).map((m) => m.user_id));
+    const { data: managers } = await client.from('team_managers').select('user_id, team_id').in('team_id', teamIds);
+    for (const manager of managers || []) {
+      const names = managedTeamNamesByUser.get(manager.user_id) || [];
+      names.push(teamNameById.get(manager.team_id) || 'Équipe');
+      managedTeamNamesByUser.set(manager.user_id, names);
+    }
   }
 
-  return (members || []).map((m) => ({ ...m, isResponsable: responsableIds.has(m.user_id) }));
+  return (members || []).map((m) => ({
+    ...m,
+    isResponsable: managedTeamNamesByUser.has(m.user_id),
+    managedTeamNames: managedTeamNamesByUser.get(m.user_id) || [],
+  }));
 }
 
 async function renderClubMembersManage() {
@@ -172,10 +181,19 @@ async function renderClubMemberDetailInto(container, member) {
   const detail = document.createElement('div');
   detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
 
-  if (member.isResponsable) {
+  // Bureau et administrateur sont aussi consideres comme des roles a part entiere, au meme titre
+  // que "responsable d'equipe" -- ce dernier precise desormais la ou les equipes concernees plutot
+  // qu'un simple intitule generique.
+  const roleLabels = [];
+  if (member.role_membre_bureau) roleLabels.push('Membre du bureau');
+  if (targetProfile && targetProfile.is_admin) roleLabels.push('Administrateur');
+  if (member.managedTeamNames && member.managedTeamNames.length) {
+    roleLabels.push(`Responsable d’équipe (${member.managedTeamNames.join(', ')})`);
+  }
+  if (roleLabels.length) {
     const roleLine = document.createElement('p');
     roleLine.className = 'communication-meta';
-    roleLine.textContent = 'Rôle : Responsable d’équipe';
+    roleLine.textContent = `Rôles : ${roleLabels.join(' · ')}`;
     detail.appendChild(roleLine);
   }
 

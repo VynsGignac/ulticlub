@@ -50,7 +50,7 @@ async function fetchMemberProfileData(targetUserId) {
   const [{ data: targetProfile }, { data: viewerProfile }] = await Promise.all([
     client
       .from('profiles')
-      .select('pseudo, nom, prenom, email, telephone, adresse, date_naissance, visible_email, visible_telephone, visible_adresse, visible_date_naissance')
+      .select('pseudo, nom, prenom, email, telephone, adresse, date_naissance, visible_email, visible_telephone, visible_adresse, visible_date_naissance, is_admin')
       .eq('id', targetUserId)
       .single(),
     client.from('profiles').select('active_club_id').eq('id', user.id).single(),
