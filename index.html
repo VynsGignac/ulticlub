@@ -43,6 +43,17 @@
   }
   .view.active { display: flex; }
 
+  .view-loading-icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 20px;
+    animation: view-loading-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes view-loading-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(0.96); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
   .view-app {
     align-items: stretch;
     justify-content: flex-start;
@@ -740,7 +751,14 @@
 </head>
 <body>
 
-  <div id="view-login" class="view active">
+  <!-- Ecran par defaut au demarrage : le temps que client.auth.getSession() determine s'il y a une
+       session active (voir js/auth.js), on affiche juste l'icone plutot que de laisser transparaitre
+       quelques frames du menu de connexion avant la bascule automatique vers Tableau de bord. -->
+  <div id="view-loading" class="view active view-loading">
+    <img src="icons/icon-192.png" alt="" class="view-loading-icon">
+  </div>
+
+  <div id="view-login" class="view">
     <h1>UltiClub</h1>
     <form id="login-form">
       <label>

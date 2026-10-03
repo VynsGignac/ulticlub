@@ -190,10 +190,10 @@ async function renderClubMemberDetailInto(container, member) {
   if (member.managedTeamNames && member.managedTeamNames.length) {
     roleLabels.push(`Responsable d’équipe (${member.managedTeamNames.join(', ')})`);
   }
-  if (roleLabels.length) {
+  for (const label of roleLabels) {
     const roleLine = document.createElement('p');
     roleLine.className = 'communication-meta';
-    roleLine.textContent = `Rôles : ${roleLabels.join(' · ')}`;
+    roleLine.textContent = `Rôle : ${label}`;
     detail.appendChild(roleLine);
   }
 

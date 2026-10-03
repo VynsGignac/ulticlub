@@ -171,9 +171,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Reste connecte d'un lancement de l'app a l'autre tant que la session Supabase est valide.
+  // view-loading (l'icone, voir index.html) reste affichee le temps de cette verification -- dans
+  // les deux cas ci-dessous, on bascule explicitement vers l'ecran qui convient une fois tranche,
+  // plutot que de laisser transparaitre le menu de connexion le temps que getSession() reponde.
   const { data: { session } } = await client.auth.getSession();
   if (session) {
     client.from('profiles').update({ email: session.user.email }).eq('id', session.user.id);
     await routeAfterLogin(session.user.id, session.user.email);
+  } else {
+    showView('view-login');
   }
 });
