@@ -40,9 +40,11 @@ function closeMemberProfile() {
   }
 }
 
-async function renderMemberProfile(targetUserId) {
-  const contentEl = showModal('Profil');
-
+// Recupere le profil d'un membre et determine si le viewer (l'utilisateur connecte) est membre du
+// bureau de son club actif (qui voit alors tous les champs, meme ceux marques non visibles).
+// Partage entre la fiche profil plein ecran ci-dessous et le volet de detail de Gestion membre
+// (voir js/club-management.js) qui integre ces memes informations sans ouvrir un autre ecran.
+async function fetchMemberProfileData(targetUserId) {
   const user = await requireUser();
 
   const [{ data: targetProfile }, { data: viewerProfile }] = await Promise.all([
@@ -54,49 +56,65 @@ async function renderMemberProfile(targetUserId) {
     client.from('profiles').select('active_club_id').eq('id', user.id).single(),
   ]);
 
+  let isBureau = false;
+  const clubId = viewerProfile ? viewerProfile.active_club_id : null;
+  if (clubId) {
+    const { data: membership } = await client
+      .from('club_members')
+      .select('role_membre_bureau')
+      .eq('user_id', user.id)
+      .eq('club_id', clubId)
+      .single();
+    isBureau = !!(membership && membership.role_membre_bureau);
+  }
+
+  return { targetProfile, isBureau };
+}
+
+function buildMemberProfileFieldsEl(targetProfile, isBureau) {
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
 
   if (!targetProfile) {
     const message = document.createElement('p');
     message.className = 'message';
     message.textContent = 'Profil introuvable.';
     wrapper.appendChild(message);
-  } else {
-    let isBureau = false;
-    const clubId = viewerProfile ? viewerProfile.active_club_id : null;
-    if (clubId) {
-      const { data: membership } = await client
-        .from('club_members')
-        .select('role_membre_bureau')
-        .eq('user_id', user.id)
-        .eq('club_id', clubId)
-        .single();
-      isBureau = !!(membership && membership.role_membre_bureau);
-    }
-
-    const title = document.createElement('h2');
-    title.textContent = [targetProfile.prenom, targetProfile.nom].filter(Boolean).join(' ') || targetProfile.pseudo;
-    wrapper.appendChild(title);
-
-    const pseudoLine = document.createElement('p');
-    pseudoLine.className = 'communication-meta';
-    pseudoLine.textContent = `Pseudo : ${targetProfile.pseudo}`;
-    wrapper.appendChild(pseudoLine);
-
-    const addField = (label, value, allowed) => {
-      if (!allowed || !value) return;
-      const p = document.createElement('p');
-      p.className = 'communication-meta';
-      p.textContent = `${label} : ${value}`;
-      wrapper.appendChild(p);
-    };
-
-    addField('Adresse mail', targetProfile.email, isBureau || targetProfile.visible_email !== false);
-    addField('Téléphone', targetProfile.telephone, isBureau || targetProfile.visible_telephone !== false);
-    addField('Adresse', targetProfile.adresse, isBureau || targetProfile.visible_adresse !== false);
-    addField('Date de naissance', targetProfile.date_naissance, isBureau || targetProfile.visible_date_naissance !== false);
+    return wrapper;
   }
+
+  const title = document.createElement('h2');
+  title.textContent = [targetProfile.prenom, targetProfile.nom].filter(Boolean).join(' ') || targetProfile.pseudo;
+  wrapper.appendChild(title);
+
+  const pseudoLine = document.createElement('p');
+  pseudoLine.className = 'communication-meta';
+  pseudoLine.textContent = `Pseudo : ${targetProfile.pseudo}`;
+  wrapper.appendChild(pseudoLine);
+
+  const addField = (label, value, allowed) => {
+    if (!allowed || !value) return;
+    const p = document.createElement('p');
+    p.className = 'communication-meta';
+    p.textContent = `${label} : ${value}`;
+    wrapper.appendChild(p);
+  };
+
+  addField('Adresse mail', targetProfile.email, isBureau || targetProfile.visible_email !== false);
+  addField('Téléphone', targetProfile.telephone, isBureau || targetProfile.visible_telephone !== false);
+  addField('Adresse', targetProfile.adresse, isBureau || targetProfile.visible_adresse !== false);
+  addField('Date de naissance', targetProfile.date_naissance, isBureau || targetProfile.visible_date_naissance !== false);
+
+  return wrapper;
+}
+
+async function renderMemberProfile(targetUserId) {
+  const contentEl = showModal('Profil');
+
+  const { targetProfile, isBureau } = await fetchMemberProfileData(targetUserId);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
+  wrapper.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
 
   const backButton = document.createElement('button');
   backButton.type = 'button';

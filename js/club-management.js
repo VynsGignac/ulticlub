@@ -67,12 +67,12 @@ function groupStickyList(filterElements, listEl) {
 
 // --- Gestion membre ------------------------------------------------
 // Fusionne les anciens boutons "Gerer membre" / "Valider membre" / "Ajouter membre du bureau" en
-// une seule liste filtrable. Cliquer sur un membre (n'importe ou sur sa ligne) affiche sa fiche
-// profil ; une case a cocher dediee gere le statut bureau, et un bouton "Valider" gere les
-// adhesions en attente -- les deux controles arretent la propagation du clic pour ne pas ouvrir le
-// profil par erreur en les actionnant.
+// une seule liste filtrable, en 2 colonnes (voir Evenement club) : cliquer sur un membre affiche
+// son profil (nom, pseudo, coordonnees visibles) dans le volet de droite, avec le bouton "Valider"
+// (adhesion en attente) ou la case a cocher "Bureau" juste en dessous.
 
 let clubMembersFilter = 'tous';
+let clubMembersSelectedId = null;
 
 async function fetchClubMembersWithRoles() {
   const [{ data: members }, { data: teams }] = await Promise.all([
@@ -92,12 +92,13 @@ async function fetchClubMembersWithRoles() {
 
 async function renderClubMembersManage() {
   const contentEl = showModal('Gestion membre');
+  contentEl.classList.add('no-scroll');
 
   const members = await fetchClubMembersWithRoles();
   const pseudoById = await fetchPseudosByIdForClub(members.map((m) => m.user_id));
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  wrapper.className = 'panel panel-wide split-view-page';
 
   const filterRow = buildFilterRow([
     { id: 'tous', label: 'Tous' },
@@ -120,60 +121,98 @@ async function renderClubMembersManage() {
   } else {
     for (const member of filtered) {
       const li = document.createElement('li');
-      li.className = 'debt-row';
-      li.addEventListener('click', () => openMemberProfile(member.user_id, renderClubMembersManage));
-
-      const nameSpan = document.createElement('span');
-      nameSpan.textContent = pseudoById.get(member.user_id) || 'Inconnu';
-      if (member.isResponsable) nameSpan.textContent += ' (responsable)';
-      li.appendChild(nameSpan);
-
+      const nameEl = document.createElement('span');
+      nameEl.className = 'split-view-item-name';
+      nameEl.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+      if (member.isResponsable) nameEl.textContent += ' (responsable)';
+      li.appendChild(nameEl);
       if (!member.valide) {
-        const validateButton = document.createElement('button');
-        validateButton.type = 'button';
-        validateButton.className = 'action-button';
-        validateButton.textContent = 'Valider';
-        validateButton.addEventListener('click', async (event) => {
-          event.stopPropagation();
-          await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
-          renderClubMembersManage();
-        });
-        li.appendChild(validateButton);
-      } else {
-        const checkboxLabel = document.createElement('label');
-        checkboxLabel.className = 'checkbox-label';
-        checkboxLabel.style.marginTop = '0';
-        checkboxLabel.addEventListener('click', (event) => event.stopPropagation());
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = !!member.role_membre_bureau;
-        checkbox.addEventListener('change', async () => {
-          await client.from('club_members').update({ role_membre_bureau: checkbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
-          member.role_membre_bureau = checkbox.checked;
-        });
-        checkboxLabel.appendChild(checkbox);
-        checkboxLabel.appendChild(document.createTextNode('Bureau'));
-        li.appendChild(checkboxLabel);
+        const metaEl = document.createElement('span');
+        metaEl.className = 'split-view-item-meta';
+        metaEl.textContent = 'non validé';
+        li.appendChild(metaEl);
       }
-
+      li.classList.toggle('selected', member.user_id === clubMembersSelectedId);
+      li.addEventListener('click', () => {
+        clubMembersSelectedId = member.user_id;
+        renderClubMembersManage();
+      });
       listEl.appendChild(li);
     }
   }
-  wrapper.appendChild(groupStickyList([filterRow], listEl));
+
+  const listColumn = document.createElement('div');
+  listColumn.className = 'split-view-list';
+  listColumn.appendChild(groupStickyList([filterRow], listEl));
+
+  const detailColumn = document.createElement('div');
+  detailColumn.className = 'split-view-detail';
+
+  const splitEl = document.createElement('div');
+  splitEl.className = 'split-view';
+  splitEl.appendChild(listColumn);
+  splitEl.appendChild(detailColumn);
+  wrapper.appendChild(splitEl);
 
   contentEl.innerHTML = '';
   contentEl.appendChild(wrapper);
+
+  const selectedMember = filtered.find((m) => m.user_id === clubMembersSelectedId);
+  if (selectedMember) {
+    renderClubMemberDetailInto(detailColumn, selectedMember);
+  } else {
+    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un membre dans la liste.</p>';
+  }
+}
+
+async function renderClubMemberDetailInto(container, member) {
+  container.innerHTML = '<p class="message">Chargement...</p>';
+
+  const { targetProfile, isBureau } = await fetchMemberProfileData(member.user_id);
+
+  const detail = document.createElement('div');
+  detail.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
+
+  if (!member.valide) {
+    const validateButton = document.createElement('button');
+    validateButton.type = 'button';
+    validateButton.className = 'action-button';
+    validateButton.textContent = 'Valider';
+    validateButton.addEventListener('click', async () => {
+      await client.from('club_members').update({ valide: true }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+      renderClubMembersManage();
+    });
+    detail.appendChild(validateButton);
+  } else {
+    const checkboxLabel = document.createElement('label');
+    checkboxLabel.className = 'checkbox-label';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = !!member.role_membre_bureau;
+    checkbox.addEventListener('change', async () => {
+      await client.from('club_members').update({ role_membre_bureau: checkbox.checked }).eq('club_id', currentGestionClubId).eq('user_id', member.user_id);
+      member.role_membre_bureau = checkbox.checked;
+    });
+    checkboxLabel.appendChild(checkbox);
+    checkboxLabel.appendChild(document.createTextNode('Membre du bureau'));
+    detail.appendChild(checkboxLabel);
+  }
+
+  container.innerHTML = '';
+  container.appendChild(detail);
 }
 
 // --- Administratif ---------------------------------------------------
-// Fusionne les anciens boutons "Gerer dette" / "Valider licence" : liste filtrable, le detail d'un
-// membre permet de modifier les deux.
+// Fusionne les anciens boutons "Gerer dette" / "Valider licence" : liste filtrable a gauche, le
+// detail d'un membre (dette, licence) dans le volet de droite.
 
 let clubAdminFilterNoLicence = false;
 let clubAdminFilterDetteMin = null;
+let clubAdminSelectedId = null;
 
 async function renderClubAdminList() {
   const contentEl = showModal('Administratif');
+  contentEl.classList.add('no-scroll');
 
   const { data: members } = await client
     .from('club_members')
@@ -183,7 +222,7 @@ async function renderClubAdminList() {
   const pseudoById = await fetchPseudosByIdForClub((members || []).map((m) => m.user_id));
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  wrapper.className = 'panel panel-wide split-view-page';
 
   const filterRow = buildFilterRow([
     { id: 'tous', label: 'Tous' },
@@ -220,25 +259,55 @@ async function renderClubAdminList() {
   } else {
     for (const member of filtered) {
       const li = document.createElement('li');
-      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-      const detail = ` — dette : ${Number(member.dette).toFixed(2)} €` + (member.licence_a_jour ? '' : ' — licence non à jour');
-      li.appendChild(document.createTextNode(detail));
+      const nameEl = document.createElement('span');
+      nameEl.className = 'split-view-item-name';
+      nameEl.textContent = pseudoById.get(member.user_id) || 'Inconnu';
+      const metaEl = document.createElement('span');
+      metaEl.className = 'split-view-item-meta';
+      metaEl.textContent = `${Number(member.dette).toFixed(2)} €` + (member.licence_a_jour ? '' : ' · licence non à jour');
+      li.appendChild(nameEl);
+      li.appendChild(metaEl);
       li.classList.toggle('highlight', !member.licence_a_jour);
-      li.addEventListener('click', () => renderClubAdminMemberDetail(member, pseudoById.get(member.user_id)));
+      li.classList.toggle('selected', member.user_id === clubAdminSelectedId);
+      li.addEventListener('click', () => {
+        clubAdminSelectedId = member.user_id;
+        renderClubAdminList();
+      });
       listEl.appendChild(li);
     }
   }
-  wrapper.appendChild(groupStickyList([filterRow, detteFilterLabel], listEl));
+
+  const listColumn = document.createElement('div');
+  listColumn.className = 'split-view-list';
+  listColumn.appendChild(groupStickyList([filterRow, detteFilterLabel], listEl));
+
+  const detailColumn = document.createElement('div');
+  detailColumn.className = 'split-view-detail';
+
+  const splitEl = document.createElement('div');
+  splitEl.className = 'split-view';
+  splitEl.appendChild(listColumn);
+  splitEl.appendChild(detailColumn);
+  wrapper.appendChild(splitEl);
 
   contentEl.innerHTML = '';
   contentEl.appendChild(wrapper);
+
+  const selectedMember = filtered.find((m) => m.user_id === clubAdminSelectedId);
+  if (selectedMember) {
+    renderClubAdminMemberDetailInto(detailColumn, selectedMember, pseudoById.get(selectedMember.user_id));
+  } else {
+    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un membre dans la liste.</p>';
+  }
 }
 
-function renderClubAdminMemberDetail(member, pseudo) {
-  const contentEl = showModal(pseudo || 'Inconnu');
+function renderClubAdminMemberDetailInto(container, member, pseudo) {
+  const detail = document.createElement('div');
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  const title = document.createElement('h3');
+  title.className = 'split-view-detail-title';
+  title.textContent = pseudo || 'Inconnu';
+  detail.appendChild(title);
 
   const detteLabel = document.createElement('label');
   detteLabel.textContent = 'Dette';
@@ -247,7 +316,7 @@ function renderClubAdminMemberDetail(member, pseudo) {
   detteInput.step = '0.01';
   detteInput.value = Number(member.dette).toFixed(2);
   detteLabel.appendChild(detteInput);
-  wrapper.appendChild(detteLabel);
+  detail.appendChild(detteLabel);
 
   const saveButton = document.createElement('button');
   saveButton.type = 'button';
@@ -259,7 +328,7 @@ function renderClubAdminMemberDetail(member, pseudo) {
     saveButton.textContent = 'Enregistré ✓';
     setTimeout(() => { saveButton.textContent = 'Enregistrer la dette'; }, 1500);
   });
-  wrapper.appendChild(saveButton);
+  detail.appendChild(saveButton);
 
   const licenceLabel = document.createElement('label');
   licenceLabel.className = 'checkbox-label';
@@ -272,17 +341,10 @@ function renderClubAdminMemberDetail(member, pseudo) {
   });
   licenceLabel.appendChild(licenceCheckbox);
   licenceLabel.appendChild(document.createTextNode('Licence à jour'));
-  wrapper.appendChild(licenceLabel);
+  detail.appendChild(licenceLabel);
 
-  const backButton = document.createElement('button');
-  backButton.type = 'button';
-  backButton.className = 'link';
-  backButton.textContent = 'Retour';
-  backButton.addEventListener('click', renderClubAdminList);
-  wrapper.appendChild(backButton);
-
-  contentEl.innerHTML = '';
-  contentEl.appendChild(wrapper);
+  container.innerHTML = '';
+  container.appendChild(detail);
 }
 
 // --- Creer une equipe ------------------------------------------------
@@ -454,7 +516,7 @@ async function renderClubEventsList() {
     .order('date_debut', { ascending: true });
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel panel-wide club-events-page';
+  wrapper.className = 'panel panel-wide split-view-page';
 
   const newButton = document.createElement('button');
   newButton.type = 'button';
@@ -482,10 +544,10 @@ async function renderClubEventsList() {
       const li = document.createElement('li');
       const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
       const nameEl = document.createElement('span');
-      nameEl.className = 'club-events-split-item-name';
+      nameEl.className = 'split-view-item-name';
       nameEl.textContent = evt.nom;
       const metaEl = document.createElement('span');
-      metaEl.className = 'club-events-split-item-meta';
+      metaEl.className = 'split-view-item-meta';
       metaEl.textContent = dateLabel + (evt.bureau_uniquement ? ' · bureau' : '');
       li.appendChild(nameEl);
       li.appendChild(metaEl);
@@ -499,14 +561,14 @@ async function renderClubEventsList() {
   }
 
   const listColumn = document.createElement('div');
-  listColumn.className = 'club-events-split-list';
+  listColumn.className = 'split-view-list';
   listColumn.appendChild(groupStickyList([filterRow], listEl));
 
   const detailColumn = document.createElement('div');
-  detailColumn.className = 'club-events-split-detail';
+  detailColumn.className = 'split-view-detail';
 
   const splitEl = document.createElement('div');
-  splitEl.className = 'club-events-split';
+  splitEl.className = 'split-view';
   splitEl.appendChild(listColumn);
   splitEl.appendChild(detailColumn);
   wrapper.appendChild(splitEl);
@@ -518,7 +580,7 @@ async function renderClubEventsList() {
   if (selectedEvent) {
     renderClubEventDetailInto(detailColumn, selectedEvent);
   } else {
-    detailColumn.innerHTML = '<p class="club-events-split-detail-placeholder">Sélectionne un événement dans la liste.</p>';
+    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un événement dans la liste.</p>';
   }
 }
 
@@ -528,7 +590,7 @@ async function renderClubEventDetailInto(container, evt) {
   const detail = document.createElement('div');
 
   const title = document.createElement('h3');
-  title.className = 'club-events-split-detail-title';
+  title.className = 'split-view-detail-title';
   title.textContent = evt.nom;
   detail.appendChild(title);
 
@@ -557,15 +619,22 @@ async function renderClubEventDetailInto(container, evt) {
     const pendingCount = (members || []).length - presentCount - absentCount;
 
     const summary = document.createElement('p');
-    summary.className = 'club-events-split-summary';
-    summary.textContent = `Présents : ${presentCount} · Absents : ${absentCount} · En attente : ${pendingCount}`;
+    summary.className = 'split-view-summary';
+    summary.textContent = `Présents : ${presentCount} · Absents : ${absentCount} · Pas de réponse : ${pendingCount}`;
     detail.appendChild(summary);
+
+    // Tri present -> absent -> pas de reponse, plutot que l'ordre arbitraire renvoye par la requete.
+    const responseRank = (userId) => {
+      const response = responseByUser.has(userId) ? responseByUser.get(userId) : null;
+      return response === true ? 0 : response === false ? 1 : 2;
+    };
+    const sortedMembers = [...(members || [])].sort((a, b) => responseRank(a.user_id) - responseRank(b.user_id));
 
     const listEl = document.createElement('ul');
     listEl.className = 'detail-member-list';
-    for (const member of members || []) {
+    for (const member of sortedMembers) {
       const response = responseByUser.has(member.user_id) ? responseByUser.get(member.user_id) : null;
-      const label = response === true ? 'présent' : response === false ? 'absent' : 'en attente';
+      const label = response === true ? 'présent' : response === false ? 'absent' : 'pas de réponse';
       const li = document.createElement('li');
       li.textContent = `${pseudoById.get(member.user_id) || 'Inconnu'} (${label})`;
       li.classList.toggle('highlight', response === true);

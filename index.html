@@ -268,18 +268,6 @@
     color: white;
     font-weight: 600;
   }
-  .debt-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    cursor: default;
-  }
-  .debt-row input {
-    width: 100px;
-    text-align: right;
-    flex: 0 0 auto;
-  }
 
   .communication-body {
     white-space: pre-wrap;
@@ -552,54 +540,55 @@
     border: none;
   }
 
-  /* Evenement club : liste a gauche / detail de l'evenement selectionne a droite, plutot qu'un
-     ecran de detail separe avec un bouton Retour -- inspire d'un panneau liste+detail classique.
-     Volontairement serre meme sur telephone etroit (choix assume plutot qu'adapte a la largeur).
-     Les 2 colonnes scrollent chacune independamment : contrairement a tous les autres ecrans, ce
-     n'est pas #app-modal-body qui scrolle ici (voir #app-modal-body.no-scroll et
-     js/club-management.js), mais chaque colonne, bornee a la hauteur disponible. */
+  /* Panneau liste+detail reutilisable (Gestion membre, Administratif, Evenement club) : liste
+     filtrable a gauche / detail de l'element selectionne a droite, plutot qu'un ecran de detail
+     separe avec un bouton Retour -- inspire d'un panneau liste+detail classique. Volontairement
+     serre meme sur telephone etroit (choix assume plutot qu'adapte a la largeur). Les 2 colonnes
+     scrollent chacune independamment : contrairement a tous les autres ecrans, ce n'est pas
+     #app-modal-body qui scrolle ici (voir #app-modal-body.no-scroll et js/club-management.js),
+     mais chaque colonne, bornee a la hauteur disponible. */
   .panel-wide {
     max-width: 100%;
   }
   #app-modal-body.no-scroll {
     overflow-y: hidden;
   }
-  .club-events-page {
+  .split-view-page {
     height: 100%;
     overflow: hidden;
   }
-  .club-events-split {
+  .split-view {
     display: flex;
     gap: 10px;
     width: 100%;
     flex: 1;
     min-height: 0;
   }
-  .club-events-split-list {
+  .split-view-list {
     flex: 0 0 42%;
     min-width: 0;
     height: 100%;
     overflow-y: auto;
   }
-  .club-events-split-list .club-results li {
+  .split-view-list .club-results li {
     padding: 8px;
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-  .club-events-split-item-name {
+  .split-view-item-name {
     font-size: 0.9em;
     overflow-wrap: break-word;
   }
-  .club-events-split-item-meta {
+  .split-view-item-meta {
     font-size: 0.75em;
     color: #8a96a3;
   }
-  .club-events-split-list .club-results li.selected {
+  .split-view-list .club-results li.selected {
     border-color: #3b82f6;
     background: #1e2a3a;
   }
-  .club-events-split-detail {
+  .split-view-detail {
     flex: 1;
     min-width: 0;
     height: 100%;
@@ -610,19 +599,24 @@
     border-radius: 8px;
     padding: 12px;
   }
-  .club-events-split-detail-title {
+  .split-view-detail-title {
     margin: 0 0 8px;
     font-size: 1em;
   }
-  .club-events-split-detail-placeholder {
+  .split-view-detail-placeholder {
     color: #8a96a3;
     text-align: center;
     font-size: 0.85em;
   }
-  .club-events-split-summary {
+  .split-view-summary {
     font-size: 0.8em;
     color: #8a96a3;
     margin: 0 0 8px;
+  }
+  .split-view-detail h2 {
+    font-size: 1em;
+    text-align: left;
+    margin: 0 0 4px;
   }
   /* Liste des membres dans le volet de detail : simples lignes cliquables (toute la ligne, pas
      juste le nom) plutot que les cartes bordees de .club-results -- plus compact, adapte a une
