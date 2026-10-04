@@ -23,9 +23,20 @@ async function handleSelectionCreate(event) {
   setMessage(errorEl, '');
   setMessage(infoEl, '');
 
+  const cibleMasculin = document.getElementById('selection-cible-masculin').checked;
+  const cibleFeminin = document.getElementById('selection-cible-feminin').checked;
+  if (!cibleMasculin && !cibleFeminin) {
+    setMessage(errorEl, 'Coche au moins Homme ou Femme.', true);
+    return;
+  }
+
   const payload = {
     team_id: currentTeamId,
     date_limite_candidature: document.getElementById('selection-date-limite').value,
+    cible_masculin: cibleMasculin,
+    cible_feminin: cibleFeminin,
+    nee_avant_le: document.getElementById('selection-nee-avant').value || null,
+    nee_apres_le: document.getElementById('selection-nee-apres').value || null,
     commentaire: document.getElementById('selection-commentaire').value.trim() || null,
   };
 

@@ -535,6 +535,21 @@ create table if not exists public.team_selections (
   created_at timestamptz not null default now()
 );
 
+-- Portee de la selection (voir js/selection-create.js) : au moins Homme ou Femme doit etre coche
+-- (les 2 peuvent l'etre -- dans ce cas la selection est ouverte a tout le monde quel que soit le
+-- genre, voir le filtrage cote app dans js/saison.js). Les 2 bornes de date de naissance sont
+-- optionnelles et cumulables (une tranche d'age). Par defaut (selections creees avant cette
+-- fonctionnalite), les 2 genres sont cibles et aucune borne de date n'est posee -- equivalent a
+-- "ouvert a tout le monde", le comportement d'avant.
+alter table public.team_selections add column if not exists cible_masculin boolean not null default true;
+alter table public.team_selections add column if not exists cible_feminin boolean not null default true;
+alter table public.team_selections add column if not exists nee_avant_le date;
+alter table public.team_selections add column if not exists nee_apres_le date;
+
+alter table public.team_selections drop constraint if exists team_selections_cible_check;
+alter table public.team_selections add constraint team_selections_cible_check
+  check (cible_masculin or cible_feminin);
+
 alter table public.team_selections enable row level security;
 
 drop policy if exists "Les membres du club lisent les selections d'equipe" on public.team_selections;

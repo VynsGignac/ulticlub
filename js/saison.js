@@ -10,12 +10,33 @@
 // / Gestion club -- voir js/team-detail.js et js/club-management.js.
 // ============================================================
 
+// Une selection ne doit apparaitre que pour les membres qu'elle cible (voir
+// js/selection-create.js) : genre (Homme/Femme, les 2 cases cochees = ouvert a tout le monde quel
+// que soit le genre) et bornes optionnelles de date de naissance (cumulables). Si une borne de date
+// est posee et que le membre n'a pas renseigne sa date de naissance, on ne peut pas confirmer qu'il
+// est concerne -- la selection ne lui est pas montree.
+function selectionMatchesProfile(sel, profile) {
+  const genreOk = (sel.cible_masculin && sel.cible_feminin)
+    || (sel.cible_masculin && profile.genre === 'Masculin')
+    || (sel.cible_feminin && profile.genre === 'Féminin');
+  if (!genreOk) return false;
+
+  if (sel.nee_avant_le || sel.nee_apres_le) {
+    if (!profile.date_naissance) return false;
+    if (sel.nee_avant_le && !(profile.date_naissance < sel.nee_avant_le)) return false;
+    if (sel.nee_apres_le && !(profile.date_naissance > sel.nee_apres_le)) return false;
+  }
+
+  return true;
+}
+
 async function fetchSaisonItems() {
   const user = await requireUser();
 
-  const [{ data: teamMemberships }, { data: clubMemberships }] = await Promise.all([
+  const [{ data: teamMemberships }, { data: clubMemberships }, { data: ownProfile }] = await Promise.all([
     client.from('team_members').select('team_id').eq('user_id', user.id),
     client.from('club_members').select('club_id').eq('user_id', user.id),
+    client.from('profiles').select('genre, date_naissance').eq('id', user.id).single(),
   ]);
   const teamIds = (teamMemberships || []).map((m) => m.team_id);
   const clubIds = (clubMemberships || []).map((m) => m.club_id);
@@ -29,7 +50,7 @@ async function fetchSaisonItems() {
       ? client.from('club_events').select(`${eventFields}, clubs (nom)`).eq('demande_confirmation', true).in('club_id', clubIds)
       : Promise.resolve({ data: [] }),
     teamIds.length
-      ? client.from('team_selections').select('id, date_limite_candidature, commentaire, teams (nom)').in('team_id', teamIds)
+      ? client.from('team_selections').select('id, date_limite_candidature, commentaire, cible_masculin, cible_feminin, nee_avant_le, nee_apres_le, teams (nom)').in('team_id', teamIds)
       : Promise.resolve({ data: [] }),
     client.from('team_event_confirmations').select('team_event_id, present').eq('user_id', user.id),
     client.from('club_event_confirmations').select('club_event_id, present').eq('user_id', user.id),
@@ -71,6 +92,7 @@ async function fetchSaisonItems() {
 
   for (const sel of selectionsRes.data || []) {
     if (sel.date_limite_candidature < todayIso) continue;
+    if (!selectionMatchesProfile(sel, ownProfile || {})) continue;
     items.push({
       type: 'selection',
       date: sel.date_limite_candidature,
