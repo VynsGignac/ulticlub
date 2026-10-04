@@ -384,6 +384,16 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    background: transparent;
+    border: none;
+    padding: 2px 0;
+    border-radius: 0;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+  }
+  .calendrier-legend-item.inactive {
+    opacity: 0.4;
   }
   .calendrier-legend-swatch {
     width: 10px;
@@ -1001,11 +1011,11 @@
         <button type="button" id="calendrier-next" class="link">›</button>
       </div>
       <div class="calendrier-legend">
-        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-equipe"></span>Événement équipe</span>
-        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-responsable"></span>Événement responsable</span>
-        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-club"></span>Événement club</span>
-        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-bureau"></span>Bureau uniquement</span>
-        <span class="calendrier-legend-item"><span class="calendrier-legend-swatch"></span>Date limite sélection</span>
+        <button type="button" class="calendrier-legend-item" data-kind="equipe"><span class="calendrier-dot calendrier-dot-equipe"></span>Équipe</button>
+        <button type="button" class="calendrier-legend-item" data-kind="responsable"><span class="calendrier-dot calendrier-dot-responsable"></span>Responsable</button>
+        <button type="button" class="calendrier-legend-item" data-kind="club"><span class="calendrier-dot calendrier-dot-club"></span>Club</button>
+        <button type="button" class="calendrier-legend-item" data-kind="bureau"><span class="calendrier-dot calendrier-dot-bureau"></span>Bureau</button>
+        <button type="button" class="calendrier-legend-item" data-kind="selection"><span class="calendrier-legend-swatch"></span>Sélection</button>
       </div>
       <div id="calendrier-grid" class="calendrier-grid"></div>
       <div id="calendrier-day-detail" class="panel" style="display: none;"></div>

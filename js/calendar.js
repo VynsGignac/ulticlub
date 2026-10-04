@@ -24,6 +24,9 @@ let calendrierYear = calendrierToday.getFullYear();
 let calendrierMonth = calendrierToday.getMonth();
 let calendrierItemsByDate = new Map();
 let calendrierSelectedDate = null;
+// Natures actuellement affichees (legende cliquable, voir toggleCalendrierKind) : toutes visibles
+// par defaut. 'selection' est a part des 4 "kind" d'evenement (equipe/responsable/club/bureau).
+let calendrierVisibleKinds = new Set(['equipe', 'responsable', 'club', 'bureau', 'selection']);
 
 // Numero de semaine ISO 8601 (lundi = debut de semaine, la semaine 1 est celle contenant le
 // premier jeudi de l'annee) -- methode standard : recaler sur le jeudi de la semaine puis compter
@@ -142,7 +145,7 @@ async function fetchCalendrierItemsByDate() {
 function renderCalendrierDayDetail(isoDate) {
   calendrierSelectedDate = isoDate;
   const detailEl = document.getElementById('calendrier-day-detail');
-  const items = calendrierItemsByDate.get(isoDate) || [];
+  const items = (calendrierItemsByDate.get(isoDate) || []).filter(isCalendrierItemVisible);
 
   if (!items.length) {
     detailEl.style.display = 'none';
@@ -196,9 +199,43 @@ function renderCalendrierDayDetail(isoDate) {
   detailEl.style.display = '';
 }
 
+// Nature d'un item au sens du filtre de legende : les 4 natures d'evenement, plus 'selection' pour
+// les dates limites de candidature (traitees a part puisqu'elles n'ont pas de "kind" propre).
+function calendrierItemFilterKey(item) {
+  return item.type === 'event' ? item.kind : 'selection';
+}
+
+function isCalendrierItemVisible(item) {
+  return calendrierVisibleKinds.has(calendrierItemFilterKey(item));
+}
+
+// Legende cliquable (voir index.html, boutons .calendrier-legend-item) : cache/affiche les
+// evenements et selections par type, sans re-interroger la base -- calendrierItemsByDate reste
+// complet, seul le rendu (grille + detail au clic) applique le filtre.
+function toggleCalendrierKind(kind) {
+  if (calendrierVisibleKinds.has(kind)) {
+    calendrierVisibleKinds.delete(kind);
+  } else {
+    calendrierVisibleKinds.add(kind);
+  }
+  renderCalendrierLegendState();
+  renderCalendrierGrid();
+}
+
+function renderCalendrierLegendState() {
+  document.querySelectorAll('#tab-content-calendrier .calendrier-legend-item').forEach((button) => {
+    button.classList.toggle('inactive', !calendrierVisibleKinds.has(button.dataset.kind));
+  });
+}
+
 async function renderCalendrierTab() {
   document.getElementById('calendrier-label').textContent = `${CALENDRIER_MOIS[calendrierMonth]} ${calendrierYear}`;
+  calendrierItemsByDate = await fetchCalendrierItemsByDate();
+  renderCalendrierLegendState();
+  renderCalendrierGrid();
+}
 
+function renderCalendrierGrid() {
   const detailEl = document.getElementById('calendrier-day-detail');
   detailEl.style.display = 'none';
   detailEl.innerHTML = '';
@@ -228,8 +265,6 @@ async function renderCalendrierTab() {
     date.getMonth() === calendrierToday.getMonth() &&
     date.getDate() === calendrierToday.getDate();
 
-  calendrierItemsByDate = await fetchCalendrierItemsByDate();
-
   for (let i = 0; i < totalDays; i += 7) {
     const weekStart = new Date(calendrierYear, calendrierMonth, i - firstWeekday + 1);
     const weekNumCell = document.createElement('div');
@@ -241,7 +276,7 @@ async function renderCalendrierTab() {
       const date = new Date(calendrierYear, calendrierMonth, i + j - firstWeekday + 1);
       const isoDate = toLocalIsoDate(date);
       const outside = date.getMonth() !== calendrierMonth;
-      const items = calendrierItemsByDate.get(isoDate) || [];
+      const items = (calendrierItemsByDate.get(isoDate) || []).filter(isCalendrierItemVisible);
       const eventKinds = new Set(items.filter((it) => it.type === 'event').map((it) => it.kind));
       const hasSelection = items.some((it) => it.type === 'selection');
       const clickable = items.length > 0;
@@ -282,4 +317,8 @@ function changeCalendrierMonth(delta) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('calendrier-prev').addEventListener('click', () => changeCalendrierMonth(-1));
   document.getElementById('calendrier-next').addEventListener('click', () => changeCalendrierMonth(1));
+
+  document.querySelectorAll('#tab-content-calendrier .calendrier-legend-item').forEach((button) => {
+    button.addEventListener('click', () => toggleCalendrierKind(button.dataset.kind));
+  });
 });
