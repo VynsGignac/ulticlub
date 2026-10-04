@@ -90,6 +90,7 @@ async function handleSignup(event) {
   const submitButton = event.submitter;
   const nom = document.getElementById('signup-nom').value.trim();
   const pseudo = document.getElementById('signup-pseudo').value.trim();
+  const genre = document.getElementById('signup-genre').value;
   const password = document.getElementById('signup-password').value;
   const email = document.getElementById('signup-email').value.trim();
   const errorEl = document.getElementById('signup-error');
@@ -112,7 +113,7 @@ async function handleSignup(event) {
       return;
     }
 
-    const { error: profileError } = await client.from('profiles').insert({ id: userId, nom, pseudo, email });
+    const { error: profileError } = await client.from('profiles').insert({ id: userId, nom, pseudo, email, genre });
     if (profileError) {
       const message = profileError.code === '23505'
         ? 'Ce pseudo est deja utilise.'

@@ -80,6 +80,18 @@ alter table public.profiles add column if not exists visible_date_naissance bool
 -- erreur, plus personne pour le reactiver depuis l'app).
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 
+-- Genre : obligatoire a la creation du compte (voir le formulaire d'inscription), toujours visible
+-- par tout le monde -- pas de case "visible par les membres hors du bureau" comme pour
+-- email/telephone/adresse/date de naissance. "Ne se prononce pas" sert aussi de valeur de repli
+-- pour les comptes crees avant l'ajout de cette colonne.
+alter table public.profiles add column if not exists genre text;
+update public.profiles set genre = 'Ne se prononce pas' where genre is null;
+alter table public.profiles alter column genre set default 'Ne se prononce pas';
+alter table public.profiles alter column genre set not null;
+alter table public.profiles drop constraint if exists profiles_genre_check;
+alter table public.profiles add constraint profiles_genre_check
+  check (genre in ('Féminin', 'Masculin', 'Ne se prononce pas'));
+
 create or replace function public.is_app_admin()
 returns boolean
 language sql

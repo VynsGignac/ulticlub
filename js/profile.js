@@ -30,7 +30,7 @@ async function renderProfilSubTab() {
   const { data: profile } = await client
     .from('profiles')
     .select(`
-      pseudo, nom, prenom, telephone, adresse, date_naissance, active_club_id,
+      pseudo, nom, prenom, genre, telephone, adresse, date_naissance, active_club_id,
       visible_email, visible_telephone, visible_adresse, visible_date_naissance
     `)
     .eq('id', user.id)
@@ -52,6 +52,7 @@ function populateProfilForm(profile, email) {
   document.getElementById('profil-pseudo').value = profile.pseudo || '';
   document.getElementById('profil-prenom').value = profile.prenom || '';
   document.getElementById('profil-nom').value = profile.nom || '';
+  document.getElementById('profil-genre').value = profile.genre || 'Ne se prononce pas';
   document.getElementById('profil-email').value = email || '';
   document.getElementById('profil-telephone').value = profile.telephone || '';
   document.getElementById('profil-adresse').value = profile.adresse || '';
@@ -179,6 +180,7 @@ async function handleProfilSave(event) {
     pseudo: document.getElementById('profil-pseudo').value.trim(),
     nom: document.getElementById('profil-nom').value.trim(),
     prenom: document.getElementById('profil-prenom').value.trim() || null,
+    genre: document.getElementById('profil-genre').value,
     telephone: document.getElementById('profil-telephone').value.trim() || null,
     adresse: document.getElementById('profil-adresse').value.trim() || null,
     date_naissance: document.getElementById('profil-date-naissance').value || null,

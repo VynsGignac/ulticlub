@@ -99,7 +99,7 @@ async function fetchMemberProfileData(targetUserId) {
   const [{ data: targetProfile }, { data: viewerProfile }] = await Promise.all([
     client
       .from('profiles')
-      .select('pseudo, nom, prenom, email, telephone, adresse, date_naissance, visible_email, visible_telephone, visible_adresse, visible_date_naissance, is_admin')
+      .select('pseudo, nom, prenom, genre, email, telephone, adresse, date_naissance, visible_email, visible_telephone, visible_adresse, visible_date_naissance, is_admin')
       .eq('id', targetUserId)
       .single(),
     client.from('profiles').select('active_club_id').eq('id', user.id).single(),
@@ -150,6 +150,10 @@ function buildMemberProfileFieldsEl(targetProfile, isBureau) {
     p.textContent = `${label} : ${value}`;
     wrapper.appendChild(p);
   };
+
+  // Contrairement aux champs ci-dessous, le genre n'a pas de case "visible par les membres hors du
+  // bureau" : il est toujours affiche, pour tout le monde.
+  addField('Genre', targetProfile.genre, true);
 
   addField('Adresse mail', targetProfile.email, isBureau || targetProfile.visible_email !== false);
   addField('Téléphone', targetProfile.telephone, isBureau || targetProfile.visible_telephone !== false);

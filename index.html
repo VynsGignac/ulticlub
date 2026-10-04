@@ -867,6 +867,15 @@
         <input id="signup-pseudo" type="text" autocomplete="username" required>
       </label>
       <label>
+        Genre
+        <select id="signup-genre" required>
+          <option value="" disabled selected>Choisir...</option>
+          <option value="Féminin">Féminin</option>
+          <option value="Masculin">Masculin</option>
+          <option value="Ne se prononce pas">Ne se prononce pas</option>
+        </select>
+      </label>
+      <label>
         Mot de passe
         <div class="password-field">
           <input id="signup-password" type="password" autocomplete="new-password" minlength="6" required>
@@ -990,6 +999,14 @@
         <label>
           Nom
           <input id="profil-nom" type="text" required>
+        </label>
+        <label>
+          Genre
+          <select id="profil-genre" required>
+            <option value="Féminin">Féminin</option>
+            <option value="Masculin">Masculin</option>
+            <option value="Ne se prononce pas">Ne se prononce pas</option>
+          </select>
         </label>
         <label>
           Adresse mail
