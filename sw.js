@@ -6,7 +6,7 @@
 // Ce numéro est généré automatiquement à chaque publication (voir publish-web.ps1, horodatage)
 // plutôt que changé à la main : un appareil ayant déjà installé la PWA ne récupère PAS
 // automatiquement les nouveaux fichiers tant que ce nom ne change pas.
-const CACHE_NAME = 'ulticlub-20261003193051';
+const CACHE_NAME = 'ulticlub-20261004080824';
 const ASSETS = [
   './',
   './index.html',
@@ -22,7 +22,6 @@ const ASSETS = [
   './js/modal.js',
   './js/team-management.js',
   './js/team-detail.js',
-  './js/event-create.js',
   './js/selection-create.js',
   './js/club-management.js',
   './js/club-event-create.js',

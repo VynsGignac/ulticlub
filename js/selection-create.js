@@ -1,8 +1,8 @@
 // ============================================================
 // Creation d'une selection pour une equipe (ouvert depuis le bouton "Nouvelle sélection" dans la
-// liste des selections -- voir renderTeamSelectionsList dans js/team-detail.js). Pas d'onglet dedie
-// dans #app-tabs : la vue s'affiche directement, avec un bouton "Retour" qui revient au detail de
-// l'equipe.
+// liste des selections -- voir renderTeamSelectionsList dans js/team-detail.js). Utilise encore un
+// onglet dedie (pas la fenetre modale partagee) ; son bouton "Retour" revient a la liste des
+// selections (qui, elle, s'affiche dans la fenetre modale).
 // ============================================================
 
 function openSelectionCreate() {
@@ -49,5 +49,5 @@ async function handleSelectionCreate(event) {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('selection-create-form').addEventListener('submit', handleSelectionCreate);
-  document.getElementById('selection-create-back').addEventListener('click', () => selectTab('team-detail'));
+  document.getElementById('selection-create-back').addEventListener('click', renderTeamSelectionsList);
 });

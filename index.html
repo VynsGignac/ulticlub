@@ -943,67 +943,6 @@
       <ul id="equipes-list" class="club-results"></ul>
     </div>
 
-    <div id="tab-content-team-detail" class="tab-content-team-detail" style="display: none;">
-      <h2 id="team-detail-title"></h2>
-      <div id="team-detail-actions" class="team-detail-actions panel">
-        <button type="button" id="team-action-manage-members" class="action-button">Gérer les membres</button>
-        <button type="button" id="team-action-create-event" class="action-button">Créer un événement</button>
-        <button type="button" id="team-action-view-events" class="action-button">Voir les événements</button>
-        <button type="button" id="team-action-selections" class="action-button">Gérer les sélections</button>
-      </div>
-      <div id="team-detail-readonly" class="team-detail-content" style="display: none;"></div>
-    </div>
-
-    <div id="tab-content-event-create" class="tab-content-event-create" style="display: none;">
-      <h2>Créer un événement</h2>
-      <form id="event-create-form" class="panel">
-        <label>
-          Nom de l'événement
-          <input id="event-nom" type="text" required>
-        </label>
-        <label>
-          Date de début
-          <input id="event-date-debut" type="date" required>
-        </label>
-        <label>
-          Date de fin (optionnel, = date de début si vide)
-          <input id="event-date-fin" type="date">
-        </label>
-        <label>
-          Heure de début
-          <input id="event-heure-debut" type="time" required>
-        </label>
-        <label>
-          Heure de fin (optionnel, = heure de début si vide)
-          <input id="event-heure-fin" type="time">
-        </label>
-        <label>
-          Lieu (optionnel)
-          <input id="event-lieu" type="text">
-        </label>
-        <label>
-          Commentaire
-          <textarea id="event-commentaire" rows="3"></textarea>
-        </label>
-        <label class="checkbox-label">
-          <input id="event-cyclique" type="checkbox">
-          Cyclique (toutes les semaines)
-        </label>
-        <label id="event-derniere-occurrence-label" style="display: none;">
-          Date de dernière occurrence
-          <input id="event-derniere-occurrence" type="date">
-        </label>
-        <label class="checkbox-label">
-          <input id="event-demande-confirmation" type="checkbox">
-          Demander confirmation
-        </label>
-        <p id="event-create-info" class="message"></p>
-        <p id="event-create-error" class="message error"></p>
-        <button type="submit">Créer l'événement</button>
-        <button type="button" id="event-create-back" class="link">Retour</button>
-      </form>
-    </div>
-
     <div id="tab-content-selection-create" class="tab-content-event-create" style="display: none;">
       <h2>Gérer les sélections</h2>
       <form id="selection-create-form" class="panel">
@@ -1147,7 +1086,6 @@
   <script src="js/modal.js"></script>
   <script src="js/team-management.js"></script>
   <script src="js/team-detail.js"></script>
-  <script src="js/event-create.js"></script>
   <script src="js/selection-create.js"></script>
   <script src="js/club-management.js"></script>
   <script src="js/club-event-create.js"></script>

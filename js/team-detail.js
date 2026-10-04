@@ -1,74 +1,54 @@
 // ============================================================
-// Onglet de detail d'une equipe (ouvert en cliquant sur une equipe depuis l'onglet "Equipe",
-// accessible a tous les membres du club) : liste des membres, ajout de membres, gestion des
-// responsables parmi les membres actuels, creation d'evenement (voir js/event-create.js) et
-// creation de selection (voir js/selection-create.js). Chaque action ouvre son contenu dans la
-// fenetre modale partagee (voir js/modal.js) plutot que sous les boutons -- plus visible et plus
-// pratique a faire defiler sur telephone qu'un contenu pousse en bas de l'ecran.
-//
-// Seuls les responsables de CETTE equipe (table team_managers) voient le panneau d'actions
-// ci-dessous ; les autres membres du club n'ont qu'une liste en lecture seule (avec l'etiquette
-// "responsable"), voir renderTeamDetailTab.
+// Detail d'une equipe (ouvert en cliquant sur une equipe depuis l'onglet "Equipe", accessible a
+// tous les membres du club) : s'affiche dans la fenetre modale partagee (voir js/modal.js), jamais
+// dans un nouvel onglet. Un responsable de CETTE equipe (table team_managers) voit un panneau
+// d'actions (voir renderTeamActionsPanel) : gerer les membres, gerer les evenements, gerer les
+// selections. Les autres membres du club n'ont que la liste des joueurs en lecture seule (voir
+// openTeamMembersSplitView, branche depuis js/team-management.js selon qu'on est responsable ou
+// non de l'equipe cliquee).
 // ============================================================
 
 let currentTeamId = null;
 let currentTeamNom = '';
 let currentTeamClubId = null;
 
-// Appelee en cliquant sur une equipe dans "Equipes actuelles" : ouvre (ou reactive) un onglet
-// dedie nomme d'apres l'equipe, a cote des onglets fixes.
+// Appelee en cliquant sur une equipe dont on est responsable, depuis "Equipes actuelles" (voir
+// js/team-management.js) : ouvre le panneau d'actions dans la fenetre modale partagee, sans
+// changer d'onglet ni en creer un nouveau.
 function openTeamDetail(teamId, teamNom, clubId) {
   currentTeamId = teamId;
   currentTeamNom = teamNom;
   currentTeamClubId = clubId;
-
-  let button = document.querySelector('#app-tabs .tab-button[data-tab="team-detail"]');
-  if (!button) {
-    button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tab-button';
-    button.dataset.tab = 'team-detail';
-    button.addEventListener('click', () => selectTab('team-detail'));
-    document.getElementById('app-tabs').appendChild(button);
-  }
-  button.textContent = teamNom;
-
-  selectTab('team-detail');
+  renderTeamActionsPanel();
 }
 
-// Determine si le joueur connecte est responsable de CETTE equipe (pas juste encadrant du club en
-// general -- ce role club-wide n'existe plus, voir js/club-management.js) pour savoir si le
-// panneau d'actions ou la simple liste en lecture seule doit s'afficher.
-async function renderTeamDetailTab() {
-  document.getElementById('team-detail-title').textContent = currentTeamNom;
+function renderTeamActionsPanel() {
+  const contentEl = showModal(currentTeamNom);
 
-  const user = await requireUser();
-  const { data: manager } = await client
-    .from('team_managers')
-    .select('user_id')
-    .eq('team_id', currentTeamId)
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel';
 
-  const isManager = !!manager;
-  document.getElementById('team-detail-actions').style.display = isManager ? '' : 'none';
-  const readonlyEl = document.getElementById('team-detail-readonly');
-  readonlyEl.style.display = isManager ? 'none' : '';
+  const addAction = (label, onClick) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action-button';
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    wrapper.appendChild(button);
+  };
 
-  if (!isManager) {
-    readonlyEl.innerHTML = '<p class="message">Chargement...</p>';
-    const listEl = await buildTeamMembersListEl();
-    readonlyEl.innerHTML = '';
-    readonlyEl.appendChild(listEl);
-  }
+  addAction('Gérer les membres', openTeamMembersManage);
+  addAction('Événement équipe', openTeamEventsManage);
+  addAction('Gérer les sélections', renderTeamSelectionsList);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
 }
 
 // --- Liste des joueurs (lecture seule, membres du club non responsables de CETTE equipe) --------
 // Ouverte depuis l'onglet "Equipe" (voir js/team-management.js) dans la fenetre modale partagee, en
 // 2 colonnes comme Gestion membre/Evenement club : liste filtrable a gauche (seul filtre : "
-// Responsable"), profil + role du joueur selectionne a droite. Ce que voient les responsables de
-// l'equipe sera revu dans un second temps -- ils gardent pour l'instant l'ancien ecran (onglet
-// dedie avec panneau d'actions, voir openTeamDetail/renderTeamDetailTab ci-dessous).
+// Responsable"), profil + role du joueur selectionne a droite.
 
 let currentSplitTeamId = null;
 let currentSplitTeamNom = '';
@@ -173,38 +153,6 @@ async function fetchPseudosById(userIds) {
   return new Map((data || []).map((p) => [p.id, p.pseudo]));
 }
 
-// Partagee entre la liste en lecture seule (membres non-responsables) et le bouton "Afficher la
-// liste des membres" du panneau d'actions (responsables) -- meme contenu, deux points d'entree.
-async function buildTeamMembersListEl() {
-  const [{ data: members }, { data: managers }] = await Promise.all([
-    client.from('team_members').select('user_id').eq('team_id', currentTeamId),
-    client.from('team_managers').select('user_id').eq('team_id', currentTeamId),
-  ]);
-  const managerIds = new Set((managers || []).map((m) => m.user_id));
-
-  if (!members || !members.length) {
-    const listEl = document.createElement('ul');
-    listEl.className = 'club-results';
-    listEl.innerHTML = '<li class="empty">Aucun membre pour l’instant.</li>';
-    return listEl;
-  }
-
-  const userIds = members.map((m) => m.user_id);
-  const pseudoById = await fetchPseudosById(userIds);
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results';
-  for (const userId of userIds) {
-    const isManager = managerIds.has(userId);
-    const li = document.createElement('li');
-    li.appendChild(createMemberNameElement(userId, pseudoById.get(userId) || 'Inconnu'));
-    if (isManager) li.appendChild(document.createTextNode(' (responsable)'));
-    li.classList.toggle('highlight', isManager);
-    listEl.appendChild(li);
-  }
-  return listEl;
-}
-
 // --- Gerer les membres (responsables de CETTE equipe) -------------------------------------------
 // Fusionne les anciens ecrans "Afficher la liste des membres"/"Ajouter des membres"/"Gerer les
 // responsables" en une seule liste filtrable, en 2 colonnes (meme pattern que partout ailleurs
@@ -250,6 +198,13 @@ async function renderTeamMembersManage() {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel panel-wide split-view-page';
+
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = '‹ Retour';
+  backButton.addEventListener('click', renderTeamActionsPanel);
+  wrapper.appendChild(backButton);
 
   const newMemberButton = document.createElement('button');
   newMemberButton.type = 'button';
@@ -406,52 +361,128 @@ async function renderAddMembersForm() {
   contentEl.appendChild(wrapper);
 }
 
-// Liste des evenements de l'equipe (les plus proches d'abord) : cliquer sur l'un d'eux affiche qui
-// a confirme sa presence (uniquement si "demander confirmation" est coche pour cet evenement).
-async function renderTeamEventsList() {
-  const contentEl = showModal('Événements de l’équipe');
+// --- Evenement equipe (responsables de CETTE equipe) ---------------------------------------------
+// Reutilise exactement le meme pattern qu'Evenement club (voir js/club-management.js et
+// js/club-event-create.js) mais scope a l'equipe : liste a gauche / detail a droite, filtre
+// "Responsables uniquement" au lieu de "Bureau uniquement", confirmations via team_event_id /
+// team_members au lieu de club_event_id / club_members.
+
+let teamEventsFilterResponsableOnly = false;
+let teamEventsSelectedId = null;
+
+function openTeamEventsManage() {
+  teamEventsFilterResponsableOnly = false;
+  teamEventsSelectedId = null;
+  renderTeamEventsManage();
+}
+
+async function renderTeamEventsManage() {
+  const contentEl = showModal(`Événements — ${currentTeamNom}`);
+  contentEl.classList.add('no-scroll');
 
   const { data: events } = await client
     .from('team_events')
-    .select('id, nom, date_debut, heure_debut, lieu, demande_confirmation')
+    .select('id, nom, date_debut, heure_debut, lieu, demande_confirmation, responsable_uniquement')
     .eq('team_id', currentTeamId)
     .order('date_debut', { ascending: true });
 
-  if (!events || !events.length) {
-    contentEl.innerHTML = '<p class="message">Aucun événement pour l’instant.</p>';
-    return;
-  }
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel panel-wide split-view-page';
+
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = '‹ Retour';
+  backButton.addEventListener('click', renderTeamActionsPanel);
+  wrapper.appendChild(backButton);
+
+  const newButton = document.createElement('button');
+  newButton.type = 'button';
+  newButton.className = 'action-button';
+  newButton.textContent = 'Nouvel événement';
+  newButton.addEventListener('click', openTeamEventCreate);
+  wrapper.appendChild(newButton);
+
+  const filterRow = buildFilterRow([
+    { id: 'responsables', label: 'Responsables uniquement' },
+  ], teamEventsFilterResponsableOnly ? 'responsables' : null, (filterId) => {
+    teamEventsFilterResponsableOnly = filterId === 'responsables';
+    renderTeamEventsManage();
+  });
+
+  const filtered = (events || []).filter((e) => !teamEventsFilterResponsableOnly || e.responsable_uniquement);
 
   const listEl = document.createElement('ul');
   listEl.className = 'club-results';
-  for (const evt of events) {
-    const li = document.createElement('li');
-    const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
-    li.textContent = `${evt.nom} — ${dateLabel}`;
-    li.addEventListener('click', () => renderTeamEventDetail(evt));
-    listEl.appendChild(li);
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="empty">Aucun événement pour ce filtre.</li>';
+  } else {
+    for (const evt of filtered) {
+      const li = document.createElement('li');
+      const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
+      const nameEl = document.createElement('span');
+      nameEl.className = 'split-view-item-name';
+      nameEl.textContent = evt.nom;
+      const metaEl = document.createElement('span');
+      metaEl.className = 'split-view-item-meta';
+      metaEl.textContent = dateLabel + (evt.responsable_uniquement ? ' · responsables' : '');
+      li.appendChild(nameEl);
+      li.appendChild(metaEl);
+      li.classList.toggle('selected', evt.id === teamEventsSelectedId);
+      li.addEventListener('click', () => {
+        teamEventsSelectedId = evt.id;
+        renderTeamEventsManage();
+      });
+      listEl.appendChild(li);
+    }
   }
+
+  const listColumn = document.createElement('div');
+  listColumn.className = 'split-view-list';
+  listColumn.appendChild(groupStickyList([filterRow], listEl));
+
+  const detailColumn = document.createElement('div');
+  detailColumn.className = 'split-view-detail';
+
+  const splitEl = document.createElement('div');
+  splitEl.className = 'split-view';
+  splitEl.appendChild(listColumn);
+  splitEl.appendChild(detailColumn);
+  wrapper.appendChild(splitEl);
+
   contentEl.innerHTML = '';
-  contentEl.appendChild(listEl);
+  contentEl.appendChild(wrapper);
+
+  const selectedEvent = filtered.find((e) => e.id === teamEventsSelectedId);
+  if (selectedEvent) {
+    renderTeamEventDetailInto(detailColumn, selectedEvent);
+  } else {
+    detailColumn.innerHTML = '<p class="split-view-detail-placeholder">Sélectionne un événement dans la liste.</p>';
+  }
 }
 
-async function renderTeamEventDetail(evt) {
-  const contentEl = showModal(evt.nom);
+async function renderTeamEventDetailInto(container, evt) {
+  container.innerHTML = '<p class="message">Chargement...</p>';
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  const detail = document.createElement('div');
+
+  const title = document.createElement('h3');
+  title.className = 'split-view-detail-title';
+  title.textContent = evt.nom;
+  detail.appendChild(title);
 
   const dateLabel = new Date(`${evt.date_debut}T00:00:00`).toLocaleDateString('fr-FR');
   const meta = document.createElement('p');
   meta.className = 'communication-meta';
-  meta.textContent = [dateLabel, evt.heure_debut ? evt.heure_debut.slice(0, 5) : '', evt.lieu].filter(Boolean).join(' · ');
-  wrapper.appendChild(meta);
+  meta.textContent = [dateLabel, evt.heure_debut ? evt.heure_debut.slice(0, 5) : '', evt.lieu, evt.responsable_uniquement ? 'responsables uniquement' : '']
+    .filter(Boolean).join(' · ');
+  detail.appendChild(meta);
 
   if (!evt.demande_confirmation) {
     const note = document.createElement('p');
     note.className = 'message';
     note.textContent = 'Cet événement ne demande pas de confirmation de présence.';
-    wrapper.appendChild(note);
+    detail.appendChild(note);
   } else {
     const [{ data: members }, { data: confirmations }] = await Promise.all([
       client.from('team_members').select('user_id').eq('team_id', currentTeamId),
@@ -460,29 +491,188 @@ async function renderTeamEventDetail(evt) {
     const pseudoById = await fetchPseudosById((members || []).map((m) => m.user_id));
     const responseByUser = new Map((confirmations || []).map((c) => [c.user_id, c.present]));
 
+    const presentCount = (members || []).filter((m) => responseByUser.get(m.user_id) === true).length;
+    const absentCount = (members || []).filter((m) => responseByUser.get(m.user_id) === false).length;
+    const pendingCount = (members || []).length - presentCount - absentCount;
+
+    const summary = document.createElement('p');
+    summary.className = 'split-view-summary';
+    summary.textContent = `Présents : ${presentCount} · Absents : ${absentCount} · Pas de réponse : ${pendingCount}`;
+    detail.appendChild(summary);
+
+    // Tri present -> absent -> pas de reponse, plutot que l'ordre arbitraire renvoye par la requete.
+    const responseRank = (userId) => {
+      const response = responseByUser.has(userId) ? responseByUser.get(userId) : null;
+      return response === true ? 0 : response === false ? 1 : 2;
+    };
+    const sortedMembers = [...(members || [])].sort((a, b) => responseRank(a.user_id) - responseRank(b.user_id));
+
     const listEl = document.createElement('ul');
-    listEl.className = 'club-results';
-    for (const member of members || []) {
+    listEl.className = 'detail-member-list';
+    for (const member of sortedMembers) {
       const response = responseByUser.has(member.user_id) ? responseByUser.get(member.user_id) : null;
-      const label = response === true ? 'présent' : response === false ? 'absent' : 'en attente';
+      const label = response === true ? 'présent' : response === false ? 'absent' : 'pas de réponse';
       const li = document.createElement('li');
-      li.appendChild(createMemberNameElement(member.user_id, pseudoById.get(member.user_id) || 'Inconnu'));
-      li.appendChild(document.createTextNode(` (${label})`));
+      li.textContent = `${pseudoById.get(member.user_id) || 'Inconnu'} (${label})`;
       li.classList.toggle('highlight', response === true);
+      li.addEventListener('click', () => openMemberProfile(member.user_id, renderTeamEventsManage));
       listEl.appendChild(li);
     }
-    wrapper.appendChild(listEl);
+    detail.appendChild(listEl);
   }
+
+  container.innerHTML = '';
+  container.appendChild(detail);
+}
+
+function openTeamEventCreate() {
+  const contentEl = showModal('Créer un événement');
+  contentEl.innerHTML = '';
+  contentEl.appendChild(buildTeamEventCreateForm());
+}
+
+function buildTeamEventCreateForm() {
+  const form = document.createElement('form');
+  form.className = 'panel';
+
+  const addField = (id, labelText, type, required) => {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = type;
+    input.id = id;
+    input.required = required;
+    label.appendChild(input);
+    form.appendChild(label);
+    return input;
+  };
+
+  addField('team-event-nom', 'Nom de l’événement', 'text', true);
+  addField('team-event-date-debut', 'Date de début', 'date', true);
+  addField('team-event-date-fin', 'Date de fin (optionnel, = date de début si vide)', 'date', false);
+  addField('team-event-heure-debut', 'Heure de début', 'time', true);
+  addField('team-event-heure-fin', 'Heure de fin (optionnel, = heure de début si vide)', 'time', false);
+  addField('team-event-lieu', 'Lieu (optionnel)', 'text', false);
+
+  const commentLabel = document.createElement('label');
+  commentLabel.textContent = 'Commentaire';
+  const commentArea = document.createElement('textarea');
+  commentArea.id = 'team-event-commentaire';
+  commentArea.rows = 3;
+  commentLabel.appendChild(commentArea);
+  form.appendChild(commentLabel);
+
+  const addCheckbox = (id, labelText) => {
+    const label = document.createElement('label');
+    label.className = 'checkbox-label';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = id;
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(labelText));
+    form.appendChild(label);
+    return checkbox;
+  };
+
+  const cycliqueCheckbox = addCheckbox('team-event-cyclique', 'Cyclique (toutes les semaines)');
+
+  const derniereLabel = document.createElement('label');
+  derniereLabel.id = 'team-event-derniere-occurrence-label';
+  derniereLabel.style.display = 'none';
+  derniereLabel.textContent = 'Date de dernière occurrence';
+  const derniereInput = document.createElement('input');
+  derniereInput.type = 'date';
+  derniereInput.id = 'team-event-derniere-occurrence';
+  derniereLabel.appendChild(derniereInput);
+  form.appendChild(derniereLabel);
+
+  cycliqueCheckbox.addEventListener('change', () => {
+    derniereLabel.style.display = cycliqueCheckbox.checked ? '' : 'none';
+    if (!cycliqueCheckbox.checked) derniereInput.value = '';
+  });
+
+  addCheckbox('team-event-demande-confirmation', 'Demander confirmation');
+  addCheckbox('team-event-responsable-uniquement', 'Responsables uniquement');
+
+  const infoEl = document.createElement('p');
+  infoEl.id = 'team-event-create-info';
+  infoEl.className = 'message';
+  const errorEl = document.createElement('p');
+  errorEl.id = 'team-event-create-error';
+  errorEl.className = 'message error';
+  form.appendChild(infoEl);
+  form.appendChild(errorEl);
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.textContent = 'Créer l’événement';
+  form.appendChild(submitButton);
 
   const backButton = document.createElement('button');
   backButton.type = 'button';
   backButton.className = 'link';
   backButton.textContent = 'Retour';
-  backButton.addEventListener('click', renderTeamEventsList);
-  wrapper.appendChild(backButton);
+  backButton.addEventListener('click', renderTeamEventsManage);
+  form.appendChild(backButton);
 
-  contentEl.innerHTML = '';
-  contentEl.appendChild(wrapper);
+  form.addEventListener('submit', handleTeamEventCreate);
+
+  return form;
+}
+
+async function handleTeamEventCreate(event) {
+  event.preventDefault();
+  const submitButton = event.submitter;
+  const errorEl = document.getElementById('team-event-create-error');
+  const infoEl = document.getElementById('team-event-create-info');
+  setMessage(errorEl, '');
+  setMessage(infoEl, '');
+
+  const cyclique = document.getElementById('team-event-cyclique').checked;
+  const derniereOccurrence = document.getElementById('team-event-derniere-occurrence').value || null;
+  if (cyclique && !derniereOccurrence) {
+    setMessage(errorEl, 'Indique la date de dernière occurrence pour un événement cyclique.', true);
+    return;
+  }
+
+  const dateDebut = document.getElementById('team-event-date-debut').value;
+  const heureDebut = document.getElementById('team-event-heure-debut').value;
+
+  const payload = {
+    team_id: currentTeamId,
+    nom: document.getElementById('team-event-nom').value.trim(),
+    date_debut: dateDebut,
+    date_fin: document.getElementById('team-event-date-fin').value || dateDebut,
+    heure_debut: heureDebut,
+    heure_fin: document.getElementById('team-event-heure-fin').value || heureDebut,
+    lieu: document.getElementById('team-event-lieu').value.trim() || null,
+    commentaire: document.getElementById('team-event-commentaire').value.trim() || null,
+    cyclique,
+    date_derniere_occurrence: cyclique ? derniereOccurrence : null,
+    demande_confirmation: document.getElementById('team-event-demande-confirmation').checked,
+    responsable_uniquement: document.getElementById('team-event-responsable-uniquement').checked,
+  };
+
+  submitButton.disabled = true;
+  try {
+    const user = await requireUser();
+    const { error } = await client.from('team_events').insert({ ...payload, created_by: user.id });
+    if (error) {
+      setMessage(errorEl, 'Erreur lors de la création de l’événement.', true);
+      return;
+    }
+
+    // Reste sur le formulaire (reinitialise) plutot que de revenir a la liste : on peut enchainer
+    // la creation de plusieurs evenements sans rouvrir la fenetre a chaque fois.
+    event.target.reset();
+    document.getElementById('team-event-derniere-occurrence-label').style.display = 'none';
+    setMessage(infoEl, 'Événement créé.');
+  } catch (err) {
+    console.error('handleTeamEventCreate: exception', err);
+    setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);
+  } finally {
+    submitButton.disabled = false;
+  }
 }
 
 // Liste des selections de l'equipe : "Nouvelle sélection" ouvre le formulaire de creation (voir
@@ -498,6 +688,13 @@ async function renderTeamSelectionsList() {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
+
+  const backButton = document.createElement('button');
+  backButton.type = 'button';
+  backButton.className = 'link';
+  backButton.textContent = '‹ Retour';
+  backButton.addEventListener('click', renderTeamActionsPanel);
+  wrapper.appendChild(backButton);
 
   const newButton = document.createElement('button');
   newButton.type = 'button';
@@ -570,9 +767,5 @@ async function renderTeamSelectionDetail(sel) {
   contentEl.appendChild(wrapper);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('team-action-manage-members').addEventListener('click', openTeamMembersManage);
-  document.getElementById('team-action-create-event').addEventListener('click', openEventCreate);
-  document.getElementById('team-action-view-events').addEventListener('click', renderTeamEventsList);
-  document.getElementById('team-action-selections').addEventListener('click', renderTeamSelectionsList);
-});
+// Pas de DOMContentLoaded ici : le panneau d'actions (voir renderTeamActionsPanel) est construit
+// dynamiquement a chaque ouverture, ses boutons sont cables directement a la creation.

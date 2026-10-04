@@ -483,6 +483,11 @@ alter table public.team_events drop constraint if exists team_events_cyclique_ch
 alter table public.team_events add constraint team_events_cyclique_check
   check (not cyclique or date_derniere_occurrence is not null);
 
+-- Case "Responsables uniquement" a la creation (voir js/team-detail.js) : equivalent de
+-- club_events.bureau_uniquement, mais a l'echelle de l'equipe -- sert de filtre dans la liste
+-- "Evenement equipe".
+alter table public.team_events add column if not exists responsable_uniquement boolean not null default false;
+
 alter table public.team_events enable row level security;
 
 drop policy if exists "Les membres du club lisent les evenements d'equipe" on public.team_events;
