@@ -868,6 +868,13 @@ create table if not exists public.club_projects (
   created_at timestamptz not null default now()
 );
 
+-- Statut d'avancement, modifiable par n'importe quel participant du projet (voir js/vie-club.js) --
+-- pas reserve au bureau qui l'a cree. "Non démarré" par defaut pour un projet tout juste cree.
+alter table public.club_projects add column if not exists statut text not null default 'Non démarré';
+alter table public.club_projects drop constraint if exists club_projects_statut_check;
+alter table public.club_projects add constraint club_projects_statut_check
+  check (statut in ('Non démarré', 'Amorcé', 'En cours', 'Terminé'));
+
 alter table public.club_projects enable row level security;
 
 drop policy if exists "Les membres du club lisent les projets de leur club" on public.club_projects;
@@ -887,6 +894,21 @@ create policy "Le bureau cree un projet de club"
     created_by = auth.uid()
     and public.is_club_bureau(club_projects.club_id)
   );
+
+-- Une fois un projet rejoint, n'importe quel participant peut modifier son commentaire et faire
+-- evoluer son statut (voir js/vie-club.js) -- ouvert a tout participant, pas seulement au bureau.
+drop policy if exists "Les participants d'un projet modifient son commentaire et son statut" on public.club_projects;
+create policy "Les participants d'un projet modifient son commentaire et son statut"
+  on public.club_projects for update
+  to authenticated
+  using (exists (
+    select 1 from public.club_project_members cpm
+    where cpm.project_id = club_projects.id and cpm.user_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from public.club_project_members cpm
+    where cpm.project_id = club_projects.id and cpm.user_id = auth.uid()
+  ));
 
 -- Participants a un projet : rejoindre/quitter est ouvert a tout membre du club concerne, pas
 -- seulement au bureau (voir le bouton "Rejoindre"/"Quitter" dans js/vie-club.js).
