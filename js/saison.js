@@ -1,13 +1,17 @@
 // ============================================================
 // Onglet Saison : regroupe les evenements (d'equipe ou de club) ayant "demander confirmation"
 // coche, et les selections d'equipe (candidature) -- les deux ayant en commun d'attendre une
-// reaction du joueur, via les boutons Present/Absent ou Postuler ci-dessous. Classes du plus proche
-// au plus lointain (date de la prochaine occurrence pour un evenement, date limite de candidature
-// pour une selection) ; les elements entierement passes ne sont pas affiches. Reutilise
-// expandEventDates/toLocalIsoDate de js/calendar.js pour geree les evenements cycliques de la meme
-// facon que le calendrier. Les reponses (team_event_confirmations / club_event_confirmations /
-// team_selection_candidatures) sont visibles par les encadrants/le bureau depuis le detail d'equipe
-// / Gestion club -- voir js/team-detail.js et js/club-management.js.
+// reaction du joueur, via les boutons Present/Absent ou Postuler dans la fenetre de detail. Deux
+// sous-onglets (Evenement / Selection, voir index.html et selectSaisonSubTab ci-dessous) ne
+// montrent chacun que les elements de leur type ; cliquer sur un element de la liste ouvre une
+// fenetre (js/modal.js) avec ses informations completes et le bouton d'action correspondant.
+// Classes du plus proche au plus lointain (date de la prochaine occurrence pour un evenement, date
+// limite de candidature pour une selection) ; les elements entierement passes ne sont pas
+// affiches. Reutilise expandEventDates/toLocalIsoDate de js/calendar.js pour geree les evenements
+// cycliques de la meme facon que le calendrier. Les reponses (team_event_confirmations /
+// club_event_confirmations / team_selection_candidatures) sont visibles par les encadrants/le
+// bureau depuis le detail d'equipe / Gestion club -- voir js/team-detail.js et
+// js/club-management.js.
 // ============================================================
 
 // Une selection ne doit apparaitre que pour les membres qu'elle cible (voir
@@ -28,6 +32,20 @@ function selectionMatchesProfile(sel, profile) {
   }
 
   return true;
+}
+
+function formatSelectionPortee(item) {
+  const genre = item.cibleMasculin && item.cibleFeminin
+    ? 'Hommes et femmes'
+    : item.cibleMasculin ? 'Hommes' : 'Femmes';
+  const parts = [genre];
+  if (item.neeApresLe) {
+    parts.push(`née/né après le ${new Date(`${item.neeApresLe}T00:00:00`).toLocaleDateString('fr-FR')}`);
+  }
+  if (item.neeAvantLe) {
+    parts.push(`née/né avant le ${new Date(`${item.neeAvantLe}T00:00:00`).toLocaleDateString('fr-FR')}`);
+  }
+  return parts.join(' · ');
 }
 
 async function fetchSaisonItems() {
@@ -100,6 +118,10 @@ async function fetchSaisonItems() {
       sourceLabel: sel.teams ? sel.teams.nom : 'Équipe',
       commentaire: sel.commentaire,
       isCandidate: candidateSelectionIds.has(sel.id),
+      cibleMasculin: sel.cible_masculin,
+      cibleFeminin: sel.cible_feminin,
+      neeAvantLe: sel.nee_avant_le,
+      neeApresLe: sel.nee_apres_le,
     });
   }
 
@@ -113,7 +135,6 @@ async function respondToEvent(confirmTable, confirmIdField, eventId, present) {
     { [confirmIdField]: eventId, user_id: user.id, present },
     { onConflict: `${confirmIdField},user_id` },
   );
-  await renderSaisonTab();
 }
 
 async function toggleCandidature(selectionId, alreadyCandidate) {
@@ -123,17 +144,45 @@ async function toggleCandidature(selectionId, alreadyCandidate) {
   } else {
     await client.from('team_selection_candidatures').insert({ selection_id: selectionId, user_id: user.id });
   }
-  await renderSaisonTab();
 }
 
-async function renderSaisonTab() {
-  const contentEl = document.getElementById('saison-content');
-  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+function renderSaisonTab() {
+  selectSaisonSubTab('evenement');
+}
 
-  const items = await fetchSaisonItems();
+function selectSaisonSubTab(subTabId) {
+  document.querySelectorAll('#tab-content-saison .subtab-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.subtab === subTabId);
+  });
+  document.getElementById('saison-subtab-evenement').style.display = subTabId === 'evenement' ? '' : 'none';
+  document.getElementById('saison-subtab-selection').style.display = subTabId === 'selection' ? '' : 'none';
+
+  if (subTabId === 'evenement') {
+    renderSaisonEvenementSubTab();
+  } else {
+    renderSaisonSelectionSubTab();
+  }
+}
+
+async function renderSaisonEvenementSubTab() {
+  const contentEl = document.getElementById('saison-evenement-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const items = (await fetchSaisonItems()).filter((item) => item.type === 'event');
+  renderSaisonItemsList(contentEl, items, 'Aucun événement à venir pour l’instant.');
+}
+
+async function renderSaisonSelectionSubTab() {
+  const contentEl = document.getElementById('saison-selection-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+  const items = (await fetchSaisonItems()).filter((item) => item.type === 'selection');
+  renderSaisonItemsList(contentEl, items, 'Aucune sélection à venir pour l’instant.');
+}
+
+function renderSaisonItemsList(contentEl, items, emptyMessage) {
+  contentEl.innerHTML = '';
 
   if (!items.length) {
-    contentEl.innerHTML = '<p class="message">Rien à venir pour l’instant.</p>';
+    contentEl.innerHTML = `<p class="message">${emptyMessage}</p>`;
     return;
   }
 
@@ -162,47 +211,97 @@ async function renderSaisonTab() {
     }
     li.appendChild(meta);
 
-    if (item.commentaire) {
-      const comment = document.createElement('div');
-      comment.className = 'communication-body';
-      comment.textContent = item.commentaire;
-      li.appendChild(comment);
-    }
-
-    const actions = document.createElement('div');
-    actions.className = 'saison-item-actions';
-
-    if (item.type === 'event') {
-      const presentBtn = document.createElement('button');
-      presentBtn.type = 'button';
-      presentBtn.className = 'action-button';
-      presentBtn.textContent = 'Présent';
-      presentBtn.classList.toggle('highlight', item.response === true);
-      presentBtn.addEventListener('click', () => respondToEvent(item.confirmTable, item.confirmIdField, item.id, true));
-
-      const absentBtn = document.createElement('button');
-      absentBtn.type = 'button';
-      absentBtn.className = 'action-button';
-      absentBtn.textContent = 'Absent';
-      absentBtn.classList.toggle('highlight', item.response === false);
-      absentBtn.addEventListener('click', () => respondToEvent(item.confirmTable, item.confirmIdField, item.id, false));
-
-      actions.appendChild(presentBtn);
-      actions.appendChild(absentBtn);
-    } else {
-      const candidateBtn = document.createElement('button');
-      candidateBtn.type = 'button';
-      candidateBtn.className = 'action-button';
-      candidateBtn.classList.toggle('highlight', item.isCandidate);
-      candidateBtn.textContent = item.isCandidate ? 'Retirer ma candidature' : 'Postuler';
-      candidateBtn.addEventListener('click', () => toggleCandidature(item.id, item.isCandidate));
-      actions.appendChild(candidateBtn);
-    }
-
-    li.appendChild(actions);
+    li.addEventListener('click', () => openSaisonItemDetail(item));
     listEl.appendChild(li);
   }
 
-  contentEl.innerHTML = '';
   contentEl.appendChild(listEl);
 }
+
+function openSaisonItemDetail(item) {
+  showModal(item.type === 'event' ? item.nom : `Sélection — ${item.sourceLabel}`);
+  renderSaisonItemDetailBody(item);
+}
+
+function renderSaisonItemDetailBody(item) {
+  const body = document.getElementById('app-modal-body');
+  body.innerHTML = '';
+
+  const dateLabel = new Date(`${item.date}T00:00:00`).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+
+  const meta = document.createElement('p');
+  meta.className = 'communication-meta';
+  if (item.type === 'event') {
+    const heures = item.heureDebut && item.heureFin ? `${item.heureDebut.slice(0, 5)} – ${item.heureFin.slice(0, 5)}` : '';
+    meta.textContent = [item.sourceLabel, dateLabel, heures, item.lieu].filter(Boolean).join(' · ');
+  } else {
+    meta.textContent = `${item.sourceLabel} · Candidature avant le ${dateLabel}`;
+  }
+  body.appendChild(meta);
+
+  if (item.type === 'selection') {
+    const portee = document.createElement('p');
+    portee.className = 'communication-meta';
+    portee.textContent = `Portée : ${formatSelectionPortee(item)}`;
+    body.appendChild(portee);
+  }
+
+  if (item.commentaire) {
+    const comment = document.createElement('p');
+    comment.className = 'communication-body';
+    comment.textContent = item.commentaire;
+    body.appendChild(comment);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'saison-item-actions';
+
+  if (item.type === 'event') {
+    const presentBtn = document.createElement('button');
+    presentBtn.type = 'button';
+    presentBtn.className = 'action-button';
+    presentBtn.textContent = 'Présent';
+    presentBtn.classList.toggle('highlight', item.response === true);
+    presentBtn.addEventListener('click', async () => {
+      await respondToEvent(item.confirmTable, item.confirmIdField, item.id, true);
+      item.response = true;
+      renderSaisonItemDetailBody(item);
+    });
+
+    const absentBtn = document.createElement('button');
+    absentBtn.type = 'button';
+    absentBtn.className = 'action-button';
+    absentBtn.textContent = 'Absent';
+    absentBtn.classList.toggle('highlight', item.response === false);
+    absentBtn.addEventListener('click', async () => {
+      await respondToEvent(item.confirmTable, item.confirmIdField, item.id, false);
+      item.response = false;
+      renderSaisonItemDetailBody(item);
+    });
+
+    actions.appendChild(presentBtn);
+    actions.appendChild(absentBtn);
+  } else {
+    const candidateBtn = document.createElement('button');
+    candidateBtn.type = 'button';
+    candidateBtn.className = 'action-button';
+    candidateBtn.classList.toggle('highlight', item.isCandidate);
+    candidateBtn.textContent = item.isCandidate ? 'Retirer ma candidature' : 'Postuler';
+    candidateBtn.addEventListener('click', async () => {
+      await toggleCandidature(item.id, item.isCandidate);
+      item.isCandidate = !item.isCandidate;
+      renderSaisonItemDetailBody(item);
+    });
+    actions.appendChild(candidateBtn);
+  }
+
+  body.appendChild(actions);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#tab-content-saison .subtab-button').forEach((button) => {
+    button.addEventListener('click', () => selectSaisonSubTab(button.dataset.subtab));
+  });
+});

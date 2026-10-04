@@ -945,7 +945,17 @@
 
     <div id="tab-content-saison" class="tab-content-team-detail" style="display: none;">
       <h2>Saison</h2>
-      <div id="saison-content" class="team-detail-content"></div>
+      <nav class="subtabs">
+        <button type="button" class="subtab-button" data-subtab="evenement">Événement</button>
+        <button type="button" class="subtab-button" data-subtab="selection">Sélection</button>
+      </nav>
+
+      <div id="saison-subtab-evenement" class="dashboard-subtab-panel">
+        <div id="saison-evenement-content" class="team-detail-content"></div>
+      </div>
+      <div id="saison-subtab-selection" class="dashboard-subtab-panel" style="display: none;">
+        <div id="saison-selection-content" class="team-detail-content"></div>
+      </div>
     </div>
 
     <div id="tab-content-gestion-equipe" class="tab-content-gestion-equipe" style="display: none;">
