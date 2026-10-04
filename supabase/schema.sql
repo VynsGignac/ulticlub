@@ -853,3 +853,78 @@ create policy "Les utilisateurs modifient leur marqueur de saison"
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- --- Projets de club (bouton "Projet" dans Gestion club, onglet "Vie de club") ------------------
+-- Contrairement a un evenement, un projet n'a ni date, ni heure, ni lieu : juste un nom et un
+-- commentaire libre, cree par le bureau. Visible ensuite par TOUS les membres du club dans l'onglet
+-- "Vie de club" (voir js/vie-club.js), qui peuvent rejoindre/quitter le projet librement.
+
+create table if not exists public.club_projects (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  nom text not null,
+  commentaire text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.club_projects enable row level security;
+
+drop policy if exists "Les membres du club lisent les projets de leur club" on public.club_projects;
+create policy "Les membres du club lisent les projets de leur club"
+  on public.club_projects for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_projects.club_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Le bureau cree un projet de club" on public.club_projects;
+create policy "Le bureau cree un projet de club"
+  on public.club_projects for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.is_club_bureau(club_projects.club_id)
+  );
+
+-- Participants a un projet : rejoindre/quitter est ouvert a tout membre du club concerne, pas
+-- seulement au bureau (voir le bouton "Rejoindre"/"Quitter" dans js/vie-club.js).
+
+create table if not exists public.club_project_members (
+  project_id uuid not null references public.club_projects (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (project_id, user_id)
+);
+
+alter table public.club_project_members enable row level security;
+
+drop policy if exists "Les membres du club lisent les participants aux projets" on public.club_project_members;
+create policy "Les membres du club lisent les participants aux projets"
+  on public.club_project_members for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_projects cp
+    join public.club_members cm on cm.club_id = cp.club_id
+    where cp.id = club_project_members.project_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les membres du club rejoignent un projet" on public.club_project_members;
+create policy "Les membres du club rejoignent un projet"
+  on public.club_project_members for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.club_projects cp
+      join public.club_members cm on cm.club_id = cp.club_id
+      where cp.id = club_project_members.project_id and cm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Les membres quittent un projet" on public.club_project_members;
+create policy "Les membres quittent un projet"
+  on public.club_project_members for delete
+  to authenticated
+  using (user_id = auth.uid());

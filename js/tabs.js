@@ -18,6 +18,7 @@ const TABS = [
 const CUSTOM_TAB_CONTAINERS = {
   calendrier: { containerId: 'tab-content-calendrier', render: renderCalendrierTab },
   saison: { containerId: 'tab-content-saison', render: renderSaisonTab },
+  'vie-club': { containerId: 'tab-content-vie-club', render: renderVieClubTab },
   'gestion-equipe': { containerId: 'tab-content-gestion-equipe', render: renderGestionEquipeTab },
   'selection-create': { containerId: 'tab-content-selection-create', render: renderSelectionCreateTab },
   'gestion-club': { containerId: 'tab-content-gestion-club', render: renderGestionClubTab },
