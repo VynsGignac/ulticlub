@@ -667,6 +667,10 @@ async function handleTeamEventCreate(event) {
     event.target.reset();
     document.getElementById('team-event-derniere-occurrence-label').style.display = 'none';
     setMessage(infoEl, 'Événement créé.');
+    // Si le createur est lui-meme concerne par ce nouvel evenement (membre de l'equipe), le point
+    // rouge Saison doit apparaitre tout de suite -- sans ca il ne se recalculerait qu'a la prochaine
+    // connexion (voir refreshSaisonBadges, normalement appele uniquement dans enterApp).
+    refreshSaisonBadges();
   } catch (err) {
     console.error('handleTeamEventCreate: exception', err);
     setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);

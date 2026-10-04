@@ -150,6 +150,10 @@ async function handleClubEventCreate(event) {
     event.target.reset();
     document.getElementById('club-event-derniere-occurrence-label').style.display = 'none';
     setMessage(infoEl, 'Événement créé.');
+    // Si le createur est lui-meme concerne par ce nouvel evenement (membre du club), le point rouge
+    // Saison doit apparaitre tout de suite -- sans ca il ne se recalculerait qu'a la prochaine
+    // connexion (voir refreshSaisonBadges, normalement appele uniquement dans enterApp).
+    refreshSaisonBadges();
   } catch (err) {
     console.error('handleClubEventCreate: exception', err);
     setMessage(errorEl, `Connexion au serveur impossible, réessaie plus tard. (${err.name}: ${err.message})`, true);

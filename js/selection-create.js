@@ -51,6 +51,10 @@ async function handleSelectionCreate(event) {
 
     document.getElementById('selection-create-form').reset();
     setMessage(infoEl, 'Sélection créée.');
+    // Si le createur est lui-meme concerne par cette nouvelle selection (genre/age cibles), le
+    // point rouge Saison doit apparaitre tout de suite -- sans ca il ne se recalculerait qu'a la
+    // prochaine connexion (voir refreshSaisonBadges, normalement appele uniquement dans enterApp).
+    refreshSaisonBadges();
   } catch {
     setMessage(errorEl, 'Connexion au serveur impossible, réessaie plus tard.', true);
   } finally {
