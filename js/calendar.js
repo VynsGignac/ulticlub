@@ -1,9 +1,17 @@
 // ============================================================
-// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche un point sur les jours
-// ayant au moins un evenement (parmi les equipes dont l'utilisateur est membre, et les clubs dont
-// il est membre), y compris les occurrences des evenements cycliques (hebdomadaires). Cliquer sur
-// un jour avec un point affiche le detail des evenements de ce jour en dessous du calendrier.
+// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche jusqu'a 4 points colores
+// sur les jours ayant au moins un evenement (parmi les equipes dont l'utilisateur est membre, et
+// les clubs dont il est membre), un point par "nature" d'evenement presente ce jour-la (voir
+// EVENT_KIND_ORDER plus bas) -- y compris les occurrences des evenements cycliques (hebdomadaires).
+// Les dates limites de candidature des selections d'equipe (filtrees par portee comme dans l'onglet
+// Saison, voir selectionMatchesProfile dans js/saison.js) colorent toute la case en gris clair
+// plutot que d'ajouter un point. Cliquer sur un jour marque (point ou case grisee) affiche le detail
+// en dessous du calendrier.
 // ============================================================
+
+// Ordre d'affichage fixe des points (de gauche a droite) quand plusieurs natures d'evenement
+// tombent le meme jour -- garde leur position stable d'un jour a l'autre.
+const EVENT_KIND_ORDER = ['equipe', 'responsable', 'club', 'bureau'];
 
 const CALENDRIER_MOIS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -14,7 +22,7 @@ const CALENDRIER_JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const calendrierToday = new Date();
 let calendrierYear = calendrierToday.getFullYear();
 let calendrierMonth = calendrierToday.getMonth();
-let calendrierEventsByDate = new Map();
+let calendrierItemsByDate = new Map();
 let calendrierSelectedDate = null;
 
 // Numero de semaine ISO 8601 (lundi = debut de semaine, la semaine 1 est celle contenant le
@@ -63,32 +71,45 @@ function expandEventDates(evt) {
   return dates;
 }
 
-// Fusionne les evenements d'equipe (des equipes dont on est membre) et les evenements de club (de
-// tous les clubs dont on est membre, quel que soit le club actif), et les indexe par jour pour le
-// detail au clic.
-async function fetchEventsByDateForCurrentUser() {
+// Fusionne les evenements d'equipe (des equipes dont on est membre), les evenements de club (de
+// tous les clubs dont on est membre, quel que soit le club actif) et les dates limites de
+// candidature des selections d'equipe (filtrees par portee -- genre/age -- comme dans l'onglet
+// Saison, voir selectionMatchesProfile dans js/saison.js), et les indexe par jour pour le rendu de
+// la grille et le detail au clic.
+async function fetchCalendrierItemsByDate() {
   const user = await requireUser();
 
-  const [{ data: teamMemberships }, { data: clubMemberships }] = await Promise.all([
+  const [{ data: teamMemberships }, { data: clubMemberships }, { data: ownProfile }] = await Promise.all([
     client.from('team_members').select('team_id').eq('user_id', user.id),
     client.from('club_members').select('club_id').eq('user_id', user.id),
+    client.from('profiles').select('genre, date_naissance').eq('id', user.id).single(),
   ]);
   const teamIds = (teamMemberships || []).map((m) => m.team_id);
   const clubIds = (clubMemberships || []).map((m) => m.club_id);
 
   const eventFields = 'id, nom, date_debut, date_fin, heure_debut, heure_fin, lieu, commentaire, cyclique, date_derniere_occurrence';
-  const [teamEventsRes, clubEventsRes] = await Promise.all([
+  const [teamEventsRes, clubEventsRes, selectionsRes] = await Promise.all([
     teamIds.length
-      ? client.from('team_events').select(`${eventFields}, teams (nom)`).in('team_id', teamIds)
+      ? client.from('team_events').select(`${eventFields}, responsable_uniquement, teams (nom)`).in('team_id', teamIds)
       : Promise.resolve({ data: [] }),
     clubIds.length
-      ? client.from('club_events').select(`${eventFields}, clubs (nom)`).in('club_id', clubIds)
+      ? client.from('club_events').select(`${eventFields}, bureau_uniquement, clubs (nom)`).in('club_id', clubIds)
+      : Promise.resolve({ data: [] }),
+    teamIds.length
+      ? client.from('team_selections').select('id, date_limite_candidature, commentaire, cible_masculin, cible_feminin, nee_avant_le, nee_apres_le, teams (nom)').in('team_id', teamIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  const eventsByDate = new Map();
-  const addEvent = (evt, sourceLabel) => {
+  const itemsByDate = new Map();
+  const addItem = (isoDate, item) => {
+    if (!itemsByDate.has(isoDate)) itemsByDate.set(isoDate, []);
+    itemsByDate.get(isoDate).push(item);
+  };
+
+  const addEvent = (evt, sourceLabel, kind) => {
     const detail = {
+      type: 'event',
+      kind,
       nom: evt.nom,
       heureDebut: evt.heure_debut,
       heureFin: evt.heure_fin,
@@ -96,24 +117,34 @@ async function fetchEventsByDateForCurrentUser() {
       commentaire: evt.commentaire,
       sourceLabel,
     };
-    for (const isoDate of expandEventDates(evt)) {
-      if (!eventsByDate.has(isoDate)) eventsByDate.set(isoDate, []);
-      eventsByDate.get(isoDate).push(detail);
-    }
+    for (const isoDate of expandEventDates(evt)) addItem(isoDate, detail);
   };
 
-  for (const evt of teamEventsRes.data || []) addEvent(evt, evt.teams ? evt.teams.nom : 'Équipe');
-  for (const evt of clubEventsRes.data || []) addEvent(evt, evt.clubs ? `Club — ${evt.clubs.nom}` : 'Club');
+  for (const evt of teamEventsRes.data || []) {
+    addEvent(evt, evt.teams ? evt.teams.nom : 'Équipe', evt.responsable_uniquement ? 'responsable' : 'equipe');
+  }
+  for (const evt of clubEventsRes.data || []) {
+    addEvent(evt, evt.clubs ? `Club — ${evt.clubs.nom}` : 'Club', evt.bureau_uniquement ? 'bureau' : 'club');
+  }
 
-  return eventsByDate;
+  for (const sel of selectionsRes.data || []) {
+    if (!selectionMatchesProfile(sel, ownProfile || {})) continue;
+    addItem(sel.date_limite_candidature, {
+      type: 'selection',
+      sourceLabel: sel.teams ? sel.teams.nom : 'Équipe',
+      commentaire: sel.commentaire,
+    });
+  }
+
+  return itemsByDate;
 }
 
 function renderCalendrierDayDetail(isoDate) {
   calendrierSelectedDate = isoDate;
   const detailEl = document.getElementById('calendrier-day-detail');
-  const events = calendrierEventsByDate.get(isoDate) || [];
+  const items = calendrierItemsByDate.get(isoDate) || [];
 
-  if (!events.length) {
+  if (!items.length) {
     detailEl.style.display = 'none';
     detailEl.innerHTML = '';
     return;
@@ -131,24 +162,28 @@ function renderCalendrierDayDetail(isoDate) {
 
   const listEl = document.createElement('ul');
   listEl.className = 'club-results';
-  for (const evt of events) {
+  for (const item of items) {
     const li = document.createElement('li');
     li.classList.add('event-detail-item');
 
     const nomEl = document.createElement('strong');
-    nomEl.textContent = evt.nom;
+    nomEl.textContent = item.type === 'event' ? item.nom : `Sélection — ${item.sourceLabel}`;
     li.appendChild(nomEl);
 
-    const heures = evt.heureDebut && evt.heureFin ? `${evt.heureDebut.slice(0, 5)} – ${evt.heureFin.slice(0, 5)}` : '';
     const meta = document.createElement('div');
     meta.className = 'communication-meta';
-    meta.textContent = [evt.sourceLabel, heures, evt.lieu].filter(Boolean).join(' · ');
+    if (item.type === 'event') {
+      const heures = item.heureDebut && item.heureFin ? `${item.heureDebut.slice(0, 5)} – ${item.heureFin.slice(0, 5)}` : '';
+      meta.textContent = [item.sourceLabel, heures, item.lieu].filter(Boolean).join(' · ');
+    } else {
+      meta.textContent = `${item.sourceLabel} · Candidature avant cette date`;
+    }
     li.appendChild(meta);
 
-    if (evt.commentaire) {
+    if (item.commentaire) {
       const comment = document.createElement('div');
       comment.className = 'communication-body';
-      comment.textContent = evt.commentaire;
+      comment.textContent = item.commentaire;
       li.appendChild(comment);
     }
 
@@ -193,7 +228,7 @@ async function renderCalendrierTab() {
     date.getMonth() === calendrierToday.getMonth() &&
     date.getDate() === calendrierToday.getDate();
 
-  calendrierEventsByDate = await fetchEventsByDateForCurrentUser();
+  calendrierItemsByDate = await fetchCalendrierItemsByDate();
 
   for (let i = 0; i < totalDays; i += 7) {
     const weekStart = new Date(calendrierYear, calendrierMonth, i - firstWeekday + 1);
@@ -206,14 +241,32 @@ async function renderCalendrierTab() {
       const date = new Date(calendrierYear, calendrierMonth, i + j - firstWeekday + 1);
       const isoDate = toLocalIsoDate(date);
       const outside = date.getMonth() !== calendrierMonth;
-      const hasEvent = calendrierEventsByDate.has(isoDate);
+      const items = calendrierItemsByDate.get(isoDate) || [];
+      const eventKinds = new Set(items.filter((it) => it.type === 'event').map((it) => it.kind));
+      const hasSelection = items.some((it) => it.type === 'selection');
+      const clickable = items.length > 0;
+
       const cell = document.createElement('div');
       cell.className = 'calendrier-day'
         + (outside ? ' outside' : '')
         + (isToday(date) ? ' today' : '')
-        + (hasEvent ? ' has-event' : '');
+        + (clickable ? ' has-event' : '')
+        + (hasSelection ? ' has-selection' : '');
       cell.textContent = date.getDate();
-      if (hasEvent) cell.addEventListener('click', () => renderCalendrierDayDetail(isoDate));
+
+      if (eventKinds.size) {
+        const dotsWrap = document.createElement('div');
+        dotsWrap.className = 'calendrier-day-dots';
+        for (const kind of EVENT_KIND_ORDER) {
+          if (!eventKinds.has(kind)) continue;
+          const dot = document.createElement('span');
+          dot.className = `calendrier-dot calendrier-dot-${kind}`;
+          dotsWrap.appendChild(dot);
+        }
+        cell.appendChild(dotsWrap);
+      }
+
+      if (clickable) cell.addEventListener('click', () => renderCalendrierDayDetail(isoDate));
       grid.appendChild(cell);
     }
   }

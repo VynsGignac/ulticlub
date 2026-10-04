@@ -371,6 +371,26 @@
     font-size: 1.3em;
     line-height: 1;
   }
+  .calendrier-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    width: 100%;
+    max-width: 360px;
+    font-size: 0.75em;
+    color: #8a97a4;
+  }
+  .calendrier-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .calendrier-legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: #55606b;
+  }
   .calendrier-grid {
     display: grid;
     grid-template-columns: auto repeat(7, 1fr);
@@ -405,17 +425,23 @@
     font-size: 0.9em;
     box-sizing: border-box;
   }
-  .calendrier-day.has-event::after {
-    content: '';
+  .calendrier-day-dots {
     position: absolute;
     bottom: 5px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+  }
+  .calendrier-dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #3b82f6;
   }
+  .calendrier-dot-equipe { background: #f87171; }
+  .calendrier-dot-responsable { background: #7f1d1d; }
+  .calendrier-dot-club { background: #3b82f6; }
+  .calendrier-dot-bureau { background: #eab308; }
   .calendrier-day.outside {
     color: #4a5560;
     background: transparent;
@@ -425,6 +451,11 @@
     border-color: #3b82f6;
     background: #1e2a3d;
     font-weight: 700;
+  }
+  /* Date limite de candidature a une selection (voir js/calendar.js) : place apres .today pour
+     rester visible meme si le jour est aussi aujourd'hui. */
+  .calendrier-day.has-selection {
+    background: #55606b;
   }
   .calendrier-day.has-event { cursor: pointer; }
   #calendrier-day-detail {
@@ -968,6 +999,13 @@
         <button type="button" id="calendrier-prev" class="link">‹</button>
         <span id="calendrier-label"></span>
         <button type="button" id="calendrier-next" class="link">›</button>
+      </div>
+      <div class="calendrier-legend">
+        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-equipe"></span>Événement équipe</span>
+        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-responsable"></span>Événement responsable</span>
+        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-club"></span>Événement club</span>
+        <span class="calendrier-legend-item"><span class="calendrier-dot calendrier-dot-bureau"></span>Bureau uniquement</span>
+        <span class="calendrier-legend-item"><span class="calendrier-legend-swatch"></span>Date limite sélection</span>
       </div>
       <div id="calendrier-grid" class="calendrier-grid"></div>
       <div id="calendrier-day-detail" class="panel" style="display: none;"></div>
