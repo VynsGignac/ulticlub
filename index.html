@@ -113,6 +113,7 @@
     -webkit-overflow-scrolling: touch;
   }
   .tab-button {
+    position: relative;
     flex: 0 0 auto;
     background: #1a2028;
     border: 1px solid #2a333c;
@@ -127,6 +128,16 @@
     border-color: #3b82f6;
     color: white;
     font-weight: 600;
+  }
+  .tab-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 2px solid #10151a;
   }
   .app-tab-content {
     flex: 1;
@@ -175,6 +186,7 @@
     border-bottom: 1px solid #1f2731;
   }
   .subtab-button {
+    position: relative;
     flex: 1;
     background: transparent;
     border: none;
@@ -188,6 +200,24 @@
     color: #e8edf2;
     border-bottom-color: #3b82f6;
     font-weight: 600;
+  }
+  .subtab-badge {
+    position: absolute;
+    top: 4px;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+  }
+  .item-new-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    margin-right: 6px;
+    vertical-align: middle;
   }
   .subtab-panel {
     width: 100%;
@@ -946,8 +976,14 @@
     <div id="tab-content-saison" class="tab-content-team-detail" style="display: none;">
       <h2>Saison</h2>
       <nav class="subtabs">
-        <button type="button" class="subtab-button" data-subtab="evenement">Événement</button>
-        <button type="button" class="subtab-button" data-subtab="selection">Sélection</button>
+        <button type="button" class="subtab-button" data-subtab="evenement">
+          Événement
+          <span id="saison-badge-evenement" class="subtab-badge" style="display: none;"></span>
+        </button>
+        <button type="button" class="subtab-button" data-subtab="selection">
+          Sélection
+          <span id="saison-badge-selection" class="subtab-badge" style="display: none;"></span>
+        </button>
       </nav>
 
       <div id="saison-subtab-evenement" class="dashboard-subtab-panel">

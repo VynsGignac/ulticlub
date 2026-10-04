@@ -54,6 +54,7 @@ function enterApp(pseudo, clubNom, roles) {
   renderTabs(roles || { encadrant: false, membreBureau: false });
   showView('view-app');
   refreshCommunicationsBadge();
+  refreshSaisonBadges();
 }
 
 async function handleLogin(event) {

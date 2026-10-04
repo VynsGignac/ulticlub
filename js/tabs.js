@@ -69,6 +69,18 @@ function renderTabs(roles) {
     button.textContent = tab.label;
     button.dataset.tab = tab.id;
     button.addEventListener('click', () => selectTab(tab.id));
+
+    // Point rouge "nouvel element dans Saison" (voir js/saison.js, refreshSaisonBadges) : le
+    // conteneur est recree a chaque renderTabs (login, changement de role), donc l'etat est
+    // resynchronise juste apres via refreshSaisonBadges() dans enterApp (js/auth.js).
+    if (tab.id === 'saison') {
+      const badge = document.createElement('span');
+      badge.id = 'saison-tab-badge';
+      badge.className = 'tab-badge';
+      badge.style.display = 'none';
+      button.appendChild(badge);
+    }
+
     tabsEl.appendChild(button);
   }
 

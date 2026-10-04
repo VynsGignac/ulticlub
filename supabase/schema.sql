@@ -816,3 +816,40 @@ create policy "Les membres retirent leur propre candidature"
   on public.team_selection_candidatures for delete
   to authenticated
   using (user_id = auth.uid());
+
+-- Marqueur "derniere lecture" de l'onglet Saison, par utilisateur ET par sous-onglet
+-- (evenement/selection, voir js/saison.js) : sert au point rouge "nouvel element" sur l'onglet
+-- Saison, chaque sous-onglet, et chaque element de la liste (nouveau si sa date de creation est
+-- posterieure a ce marqueur) -- meme principe que communication_reads plus haut, mais par
+-- sous-onglet plutot que par club puisque Saison agrege toutes les equipes/clubs de l'utilisateur.
+create table if not exists public.saison_reads (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  sous_onglet text not null,
+  last_read_at timestamptz not null default now(),
+  primary key (user_id, sous_onglet)
+);
+
+alter table public.saison_reads drop constraint if exists saison_reads_sous_onglet_check;
+alter table public.saison_reads add constraint saison_reads_sous_onglet_check
+  check (sous_onglet in ('evenement', 'selection'));
+
+alter table public.saison_reads enable row level security;
+
+drop policy if exists "Les utilisateurs lisent leur marqueur de saison" on public.saison_reads;
+create policy "Les utilisateurs lisent leur marqueur de saison"
+  on public.saison_reads for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Les utilisateurs creent leur marqueur de saison" on public.saison_reads;
+create policy "Les utilisateurs creent leur marqueur de saison"
+  on public.saison_reads for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Les utilisateurs modifient leur marqueur de saison" on public.saison_reads;
+create policy "Les utilisateurs modifient leur marqueur de saison"
+  on public.saison_reads for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

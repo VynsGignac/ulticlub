@@ -12,6 +12,15 @@
 // club_event_confirmations / team_selection_candidatures) sont visibles par les encadrants/le
 // bureau depuis le detail d'equipe / Gestion club -- voir js/team-detail.js et
 // js/club-management.js.
+//
+// Point rouge "nouvel element" (onglet Saison, chaque sous-onglet, et chaque element de la liste
+// concernee) : base sur saison_reads (marqueur "derniere lecture" par utilisateur ET par
+// sous-onglet, voir supabase/schema.sql), meme principe que communication_reads en js/
+// communications.js. Un element est "nouveau" si sa date de creation (created_at) est posterieure
+// au marqueur du sous-onglet dont il releve. Ouvrir un sous-onglet marque IMMEDIATEMENT son
+// marqueur a "maintenant" (pas besoin de cliquer sur l'element) -- mais la liste affichee a CET
+// instant utilise encore l'ANCIEN marqueur pour decider quels elements montrer avec un point rouge,
+// sinon le point disparaitrait avant meme que l'utilisateur ait pu le voir.
 // ============================================================
 
 // Une selection ne doit apparaitre que pour les membres qu'elle cible (voir
@@ -59,7 +68,7 @@ async function fetchSaisonItems() {
   const teamIds = (teamMemberships || []).map((m) => m.team_id);
   const clubIds = (clubMemberships || []).map((m) => m.club_id);
 
-  const eventFields = 'id, nom, date_debut, date_fin, heure_debut, heure_fin, lieu, commentaire, cyclique, date_derniere_occurrence';
+  const eventFields = 'id, nom, date_debut, date_fin, heure_debut, heure_fin, lieu, commentaire, cyclique, date_derniere_occurrence, created_at';
   const [teamEventsRes, clubEventsRes, selectionsRes, teamConfirmRes, clubConfirmRes, candidaturesRes] = await Promise.all([
     teamIds.length
       ? client.from('team_events').select(`${eventFields}, teams (nom)`).eq('demande_confirmation', true).in('team_id', teamIds)
@@ -68,7 +77,7 @@ async function fetchSaisonItems() {
       ? client.from('club_events').select(`${eventFields}, clubs (nom)`).eq('demande_confirmation', true).in('club_id', clubIds)
       : Promise.resolve({ data: [] }),
     teamIds.length
-      ? client.from('team_selections').select('id, date_limite_candidature, commentaire, cible_masculin, cible_feminin, nee_avant_le, nee_apres_le, teams (nom)').in('team_id', teamIds)
+      ? client.from('team_selections').select('id, date_limite_candidature, commentaire, cible_masculin, cible_feminin, nee_avant_le, nee_apres_le, created_at, teams (nom)').in('team_id', teamIds)
       : Promise.resolve({ data: [] }),
     client.from('team_event_confirmations').select('team_event_id, present').eq('user_id', user.id),
     client.from('club_event_confirmations').select('club_event_id, present').eq('user_id', user.id),
@@ -98,6 +107,7 @@ async function fetchSaisonItems() {
       confirmTable,
       confirmIdField,
       response: responseByEventId.has(evt.id) ? responseByEventId.get(evt.id) : null,
+      createdAt: evt.created_at,
     });
   };
 
@@ -122,6 +132,7 @@ async function fetchSaisonItems() {
       cibleFeminin: sel.cible_feminin,
       neeAvantLe: sel.nee_avant_le,
       neeApresLe: sel.nee_apres_le,
+      createdAt: sel.created_at,
     });
   }
 
@@ -146,6 +157,47 @@ async function toggleCandidature(selectionId, alreadyCandidate) {
   }
 }
 
+const SAISON_EPOCH = '1970-01-01T00:00:00Z';
+
+async function fetchSaisonReadMarkers(userId) {
+  const { data } = await client.from('saison_reads').select('sous_onglet, last_read_at').eq('user_id', userId);
+  const markers = { evenement: SAISON_EPOCH, selection: SAISON_EPOCH };
+  for (const row of data || []) markers[row.sous_onglet] = row.last_read_at;
+  return markers;
+}
+
+async function markSaisonSubTabRead(userId, subTabId) {
+  await client.from('saison_reads').upsert(
+    { user_id: userId, sous_onglet: subTabId, last_read_at: new Date().toISOString() },
+    { onConflict: 'user_id,sous_onglet' },
+  );
+}
+
+// Met a jour les 3 points rouges (onglet Saison, et chaque sous-onglet) sans rien marquer comme lu
+// -- appele au login (voir enterApp dans js/auth.js) et apres chaque ouverture de sous-onglet, pour
+// refleter l'etat courant meme quand on n'est pas sur l'onglet Saison.
+async function refreshSaisonBadges() {
+  const tabBadge = document.getElementById('saison-tab-badge');
+  const evenementBadge = document.getElementById('saison-badge-evenement');
+  const selectionBadge = document.getElementById('saison-badge-selection');
+  if (!tabBadge && !evenementBadge && !selectionBadge) return;
+
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return;
+  }
+
+  const [items, markers] = await Promise.all([fetchSaisonItems(), fetchSaisonReadMarkers(user.id)]);
+  const hasUnreadEvenement = items.some((item) => item.type === 'event' && item.createdAt > markers.evenement);
+  const hasUnreadSelection = items.some((item) => item.type === 'selection' && item.createdAt > markers.selection);
+
+  if (evenementBadge) evenementBadge.style.display = hasUnreadEvenement ? '' : 'none';
+  if (selectionBadge) selectionBadge.style.display = hasUnreadSelection ? '' : 'none';
+  if (tabBadge) tabBadge.style.display = (hasUnreadEvenement || hasUnreadSelection) ? '' : 'none';
+}
+
 function renderSaisonTab() {
   selectSaisonSubTab('evenement');
 }
@@ -167,15 +219,29 @@ function selectSaisonSubTab(subTabId) {
 async function renderSaisonEvenementSubTab() {
   const contentEl = document.getElementById('saison-evenement-content');
   contentEl.innerHTML = '<p class="message">Chargement...</p>';
-  const items = (await fetchSaisonItems()).filter((item) => item.type === 'event');
+
+  const user = await requireUser();
+  const [allItems, markers] = await Promise.all([fetchSaisonItems(), fetchSaisonReadMarkers(user.id)]);
+  const items = allItems.filter((item) => item.type === 'event');
+  for (const item of items) item.isNew = item.createdAt > markers.evenement;
   renderSaisonItemsList(contentEl, items, 'Aucun événement à venir pour l’instant.');
+
+  await markSaisonSubTabRead(user.id, 'evenement');
+  refreshSaisonBadges();
 }
 
 async function renderSaisonSelectionSubTab() {
   const contentEl = document.getElementById('saison-selection-content');
   contentEl.innerHTML = '<p class="message">Chargement...</p>';
-  const items = (await fetchSaisonItems()).filter((item) => item.type === 'selection');
+
+  const user = await requireUser();
+  const [allItems, markers] = await Promise.all([fetchSaisonItems(), fetchSaisonReadMarkers(user.id)]);
+  const items = allItems.filter((item) => item.type === 'selection');
+  for (const item of items) item.isNew = item.createdAt > markers.selection;
   renderSaisonItemsList(contentEl, items, 'Aucune sélection à venir pour l’instant.');
+
+  await markSaisonSubTabRead(user.id, 'selection');
+  refreshSaisonBadges();
 }
 
 function renderSaisonItemsList(contentEl, items, emptyMessage) {
@@ -198,7 +264,12 @@ function renderSaisonItemsList(contentEl, items, emptyMessage) {
     });
 
     const title = document.createElement('strong');
-    title.textContent = item.type === 'event' ? item.nom : `Sélection — ${item.sourceLabel}`;
+    if (item.isNew) {
+      const dot = document.createElement('span');
+      dot.className = 'item-new-dot';
+      title.appendChild(dot);
+    }
+    title.appendChild(document.createTextNode(item.type === 'event' ? item.nom : `Sélection — ${item.sourceLabel}`));
     li.appendChild(title);
 
     const meta = document.createElement('div');
