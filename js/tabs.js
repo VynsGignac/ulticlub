@@ -1,18 +1,33 @@
 // ============================================================
-// Onglets de l'espace club. Tout le monde est "joueur" (acces a tous les onglets communs, y compris
-// desormais "Equipe" -- seul le detail d'une equipe specifique varie selon qu'on en est responsable
-// ou non, voir js/team-detail.js) ; membre du bureau debloque en plus "Gestion club". Les onglets
-// avec un vrai contenu ont leur propre conteneur dedie (voir CUSTOM_TAB_CONTAINERS) ; les autres
-// restent des placeholders en attendant leur implementation. "Tableau de bord" n'est plus un onglet
-// de la barre : on y accede via le bouton pseudo/club de l'en-tete (voir js/main.js).
+// Onglets de l'espace club. Refonte de la barre principale (2026-10-26) : on ne garde que
+// "Calendrier" de l'ancienne barre, et on la remplace par Bureau / Sport / Kid / Communication /
+// Vie Associative / Administratif / Disciplinaire -- tous vides pour l'instant (simple placeholder
+// "contenu a venir", meme mecanisme que "Vie de club" avant l'ajout des projets), tous visibles par
+// tout le monde (pas de restriction de role pour l'instant, a affiner une fois leur contenu defini).
+//
+// Les anciens onglets (Saison, Vie de club, Equipe, Gestion club) ont ete retires de TABS mais leur
+// code reste intact et intentionnellement inchange (team-detail.js, club-management.js,
+// vie-club.js, saison.js, selection-create.js, club-event-create.js, club-project-create.js, et
+// leurs conteneurs HTML) -- simplement inaccessibles depuis la barre tant qu'on ne decide pas, au
+// cas par cas, ou chaque fonctionnalite doit atterrir parmi les nouveaux onglets. Leurs entrees dans
+// CUSTOM_TAB_CONTAINERS restent presentes mais ne sont plus jamais declenchees par la barre (aucun
+// tab.id de TABS ne les reference), donc sans effet.
+//
+// "Tableau de bord" n'est pas un onglet de la barre : on y accede via le bouton pseudo/club de
+// l'en-tete (voir js/main.js). Les onglets avec un vrai contenu ont leur propre conteneur dedie
+// (voir CUSTOM_TAB_CONTAINERS) ; les autres restent des placeholders en attendant leur
+// implementation.
 // ============================================================
 
 const TABS = [
   { id: 'calendrier', label: 'Calendrier' },
-  { id: 'saison', label: 'Saison' },
-  { id: 'vie-club', label: 'Vie de club' },
-  { id: 'gestion-equipe', label: 'Équipe' },
-  { id: 'gestion-club', label: 'Gestion club', requires: 'membreBureau' },
+  { id: 'bureau', label: 'Bureau' },
+  { id: 'sport', label: 'Sport' },
+  { id: 'kid', label: 'Kid' },
+  { id: 'communication', label: 'Communication' },
+  { id: 'vie-associative', label: 'Vie Associative' },
+  { id: 'administratif', label: 'Administratif' },
+  { id: 'disciplinaire', label: 'Disciplinaire' },
 ];
 
 const CUSTOM_TAB_CONTAINERS = {
