@@ -72,8 +72,9 @@ function populateProfilForm(profile, email) {
 
 async function renderLicencieLinkSection(userId) {
   const panelEl = document.getElementById('profil-licencie-panel');
+  const errorEl = document.getElementById('profil-licencie-error');
   setMessage(document.getElementById('profil-licencie-info'), '');
-  setMessage(document.getElementById('profil-licencie-error'), '');
+  setMessage(errorEl, '');
 
   if (!currentProfilClubId) {
     panelEl.style.display = 'none';
@@ -81,10 +82,17 @@ async function renderLicencieLinkSection(userId) {
   }
   panelEl.style.display = '';
 
-  const [{ data: membership }, { data: roster }] = await Promise.all([
+  const [{ data: membership }, { data: roster, error: rosterError }] = await Promise.all([
     client.from('club_members').select('licencie_id').eq('user_id', userId).eq('club_id', currentProfilClubId).maybeSingle(),
     client.rpc('club_licencies_names', { target_club_id: currentProfilClubId }),
   ]);
+
+  // Erreur la plus probable ici : le script supabase/schema.sql le plus recent n'a pas encore ete
+  // execute cote Supabase (fonction club_licencies_names() inexistante) -- affichee pour pouvoir le
+  // diagnostiquer depuis l'app plutot que de silencieusement retomber sur une liste vide.
+  if (rosterError) {
+    setMessage(errorEl, `Liste des membres indisponible (${rosterError.message}).`, true);
+  }
 
   profilLicencieRoster = roster || [];
   const linkedId = membership ? membership.licencie_id : null;
@@ -95,34 +103,56 @@ async function renderLicencieLinkSection(userId) {
 
   if (linked) {
     document.getElementById('profil-licencie-linked-name').textContent = [linked.prenom, linked.nom].filter(Boolean).join(' ') || linked.nom;
-  } else {
-    document.getElementById('profil-licencie-query').value = '';
-    renderLicencieSearchResults('');
   }
 }
 
-function renderLicencieSearchResults(query) {
-  const listEl = document.getElementById('profil-licencie-results');
-  const trimmed = query.trim().toLowerCase();
-  const matches = trimmed
-    ? profilLicencieRoster.filter((l) => `${l.prenom || ''} ${l.nom}`.toLowerCase().includes(trimmed))
-    : profilLicencieRoster;
+// Popup (voir js/modal.js) avec un champ de recherche en haut et, en dessous, la liste deroulante
+// de TOUS les licencies du club -- filtree en direct par sous-chaine commune (nom ou prenom) au fur
+// et a mesure de la saisie, sans plafond de resultats affiches.
+function openLicencieLinkPicker() {
+  const body = showModal('Lier mon compte à un membre');
+  body.innerHTML = '';
 
-  listEl.innerHTML = '';
-  if (!matches.length) {
-    listEl.innerHTML = '<li class="empty">Aucun membre trouvé.</li>';
-    return;
-  }
-  for (const licencie of matches.slice(0, 20)) {
-    const li = document.createElement('li');
-    li.textContent = [licencie.prenom, licencie.nom].filter(Boolean).join(' ') || licencie.nom;
-    li.addEventListener('click', () => handleLinkLicencie(licencie.id));
-    listEl.appendChild(li);
-  }
+  const searchLabel = document.createElement('label');
+  searchLabel.textContent = 'Chercher un nom';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Nom ou prénom...';
+  searchLabel.appendChild(searchInput);
+  body.appendChild(searchLabel);
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  body.appendChild(listEl);
+
+  const errorEl = document.createElement('p');
+  errorEl.className = 'message error';
+  body.appendChild(errorEl);
+
+  const renderList = (query) => {
+    const trimmed = query.trim().toLowerCase();
+    const matches = trimmed
+      ? profilLicencieRoster.filter((l) => `${l.prenom || ''} ${l.nom}`.toLowerCase().includes(trimmed))
+      : profilLicencieRoster;
+
+    listEl.innerHTML = '';
+    if (!matches.length) {
+      listEl.innerHTML = '<li class="empty">Aucun membre trouvé.</li>';
+      return;
+    }
+    for (const licencie of matches) {
+      const li = document.createElement('li');
+      li.textContent = [licencie.prenom, licencie.nom].filter(Boolean).join(' ') || licencie.nom;
+      li.addEventListener('click', () => handleLinkLicencie(licencie.id, errorEl));
+      listEl.appendChild(li);
+    }
+  };
+
+  searchInput.addEventListener('input', () => renderList(searchInput.value));
+  renderList('');
 }
 
-async function handleLinkLicencie(licencieId) {
-  const errorEl = document.getElementById('profil-licencie-error');
+async function handleLinkLicencie(licencieId, errorEl) {
   setMessage(errorEl, '');
 
   const { error } = await client.rpc('set_own_licencie_link', { target_club_id: currentProfilClubId, target_licencie_id: licencieId });
@@ -131,9 +161,9 @@ async function handleLinkLicencie(licencieId) {
     return;
   }
 
+  closeModal();
   const user = await requireUser();
   await renderLicencieLinkSection(user.id);
-  setMessage(document.getElementById('profil-licencie-info'), 'Compte lié.');
 }
 
 async function handleUnlinkLicencie() {
@@ -285,6 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', () => selectDashboardSubTab(button.dataset.subtab));
   });
 
-  document.getElementById('profil-licencie-query').addEventListener('input', (event) => renderLicencieSearchResults(event.target.value));
+  document.getElementById('profil-licencie-link-button').addEventListener('click', openLicencieLinkPicker);
   document.getElementById('profil-licencie-unlink').addEventListener('click', handleUnlinkLicencie);
 });
