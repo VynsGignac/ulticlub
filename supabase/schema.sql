@@ -127,20 +127,26 @@ create policy "Les utilisateurs modifient leur propre profil"
 
 -- --- Appartenance aux clubs -----------------------------------
 -- Un utilisateur peut appartenir a plusieurs clubs a la fois (onglet Profil : liste de ses clubs,
--- bouton pour en quitter un ou basculer vers un autre). Chaque appartenance porte ses propres
--- niveaux, cumulables en plus de "joueur" (le niveau de base, implicite, rien a stocker pour lui) :
--- encadrant donne acces a l'onglet "Gestion equipe", membre du bureau donne acces a l'onglet
--- "Gestion club". Le createur d'un club recoit les deux automatiquement.
+-- bouton pour en quitter un ou basculer vers un autre). Exactement 2 roles possibles par
+-- appartenance (refonte 2026-10-26, l'ancien role "encadrant" est retire -- voir plus bas) :
+-- "licencié" est le role de base, implicite, rien a stocker pour lui ; "membre du bureau"
+-- (role_membre_bureau) donne acces aux ecrans d'administration du club. Le createur d'un club est
+-- membre du bureau des la creation.
 
 create table if not exists public.club_members (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   club_id uuid not null references public.clubs (id) on delete cascade,
-  role_encadrant boolean not null default false,
   role_membre_bureau boolean not null default false,
   created_at timestamptz not null default now(),
   unique (user_id, club_id)
 );
+
+-- Role "encadrant" retire (refonte des roles, 2026-10-26) : il ne pilotait plus aucun acces depuis
+-- le retrait de l'onglet "Gestion equipe" de la barre principale -- seuls "licencié" (implicite) et
+-- "membre du bureau" subsistent desormais. Les lignes existantes restent intactes, seule la colonne
+-- disparait.
+alter table public.club_members drop column if exists role_encadrant;
 
 -- Statut administratif (onglet Tableau de bord > Administratif, lecture seule pour le membre) :
 -- saisi par le bureau via l'onglet Gestion club.
@@ -194,8 +200,8 @@ create policy "Les utilisateurs rejoignent un club en leur nom"
   to authenticated
   with check (auth.uid() = user_id);
 
--- Un membre du bureau peut valider un nouvel arrivant et gerer les roles (encadrant, membre du
--- bureau) de n'importe quel membre de son club -- voir l'onglet Gestion club.
+-- Un membre du bureau peut valider un nouvel arrivant et gerer le role membre du bureau de
+-- n'importe quel membre de son club.
 drop policy if exists "Les membres du bureau modifient les membres de leur club" on public.club_members;
 create policy "Les membres du bureau modifient les membres de leur club"
   on public.club_members for update
@@ -250,7 +256,7 @@ create policy "Les membres d'un meme club lisent les profils de ce club"
     )
   );
 
--- --- Equipes (onglet Gestion equipe, reserve aux encadrants) ---
+-- --- Equipes ---
 -- Une equipe appartient a un seul club et se definit par 4 champs obligatoires (categorie,
 -- section, division, surface). Son nom est pre-rempli a partir de ces champs ("Section Categorie
 -- Division Surface", ex. "Adulte Open D1 Outdoor") cote app (voir js/club-management.js), mais
@@ -950,3 +956,56 @@ create policy "Les membres quittent un projet"
   on public.club_project_members for delete
   to authenticated
   using (user_id = auth.uid());
+
+-- --- Licencies (onglet Administratif > Liste des membres, reserve au bureau) ---------------------
+-- Roster officiel du club (nom, prenom, date de naissance, categorie, equipe, numero de licence,
+-- telephone, mail), saisi et tenu a jour a la main par le bureau -- voir js/administratif.js.
+-- VOLONTAIREMENT SANS LIEN avec les comptes de l'app (profiles/club_members) : un licencie du club
+-- n'a pas forcement de compte sur l'app, et inversement. Donnees sensibles (date de naissance,
+-- telephone, mail) : lecture et ecriture reservees au bureau du club, contrairement a la plupart des
+-- autres tables ou tous les membres du club peuvent au moins lire.
+
+create table if not exists public.club_licencies (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  nom text not null,
+  prenom text,
+  date_naissance date,
+  categorie text,
+  equipe text,
+  licence text,
+  telephone text,
+  mail text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.club_licencies enable row level security;
+
+drop policy if exists "Le bureau lit les licencies de son club" on public.club_licencies;
+create policy "Le bureau lit les licencies de son club"
+  on public.club_licencies for select
+  to authenticated
+  using (public.is_club_bureau(club_id));
+
+drop policy if exists "Le bureau ajoute un licencie dans son club" on public.club_licencies;
+create policy "Le bureau ajoute un licencie dans son club"
+  on public.club_licencies for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.is_club_bureau(club_id)
+  );
+
+drop policy if exists "Le bureau modifie les licencies de son club" on public.club_licencies;
+create policy "Le bureau modifie les licencies de son club"
+  on public.club_licencies for update
+  to authenticated
+  using (public.is_club_bureau(club_id))
+  with check (public.is_club_bureau(club_id));
+
+drop policy if exists "Le bureau supprime un licencie de son club" on public.club_licencies;
+create policy "Le bureau supprime un licencie de son club"
+  on public.club_licencies for delete
+  to authenticated
+  using (public.is_club_bureau(club_id));

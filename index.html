@@ -1065,6 +1065,25 @@
       <div id="vie-club-content" class="team-detail-content"></div>
     </div>
 
+    <div id="tab-content-administratif" class="tab-content-team-detail" style="display: none;">
+      <h2>Administratif</h2>
+      <nav class="subtabs">
+        <button type="button" class="subtab-button" data-subtab="liste-membres">Liste des membres</button>
+        <button type="button" class="subtab-button" data-subtab="dette">Dette</button>
+        <button type="button" class="subtab-button" data-subtab="finance-club">Finance Club</button>
+      </nav>
+
+      <div id="administratif-subtab-liste-membres" class="dashboard-subtab-panel">
+        <div id="administratif-liste-membres-content" class="team-detail-content"></div>
+      </div>
+      <div id="administratif-subtab-dette" class="dashboard-subtab-panel" style="display: none;">
+        <div id="administratif-dette-content" class="team-detail-content"></div>
+      </div>
+      <div id="administratif-subtab-finance-club" class="dashboard-subtab-panel" style="display: none;">
+        <div id="administratif-finance-club-content" class="team-detail-content"></div>
+      </div>
+    </div>
+
     <div id="tab-content-gestion-equipe" class="tab-content-gestion-equipe" style="display: none;">
       <ul id="equipes-list" class="club-results"></ul>
     </div>
@@ -1242,6 +1261,7 @@
   <script src="js/club-event-create.js"></script>
   <script src="js/club-project-create.js"></script>
   <script src="js/vie-club.js"></script>
+  <script src="js/administratif.js"></script>
   <script src="js/communications.js"></script>
   <script src="js/member-profile.js"></script>
   <script src="js/help-menu.js"></script>

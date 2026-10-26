@@ -27,17 +27,16 @@ async function routeAfterLogin(userId, fallbackPseudo) {
   if (profile && profile.active_club_id) {
     const { data: membership } = await client
       .from('club_members')
-      .select('role_encadrant, role_membre_bureau, clubs (nom)')
+      .select('role_membre_bureau, clubs (nom)')
       .eq('user_id', userId)
       .eq('club_id', profile.active_club_id)
       .single();
 
     if (membership) {
-      // is_admin donne acces a "Gestion club" meme si role_membre_bureau est faux sur cette
-      // appartenance precise -- voir supabase/schema.sql (is_app_admin, compte irrevocable depuis
-      // l'app, filet de securite en cas d'auto-exclusion accidentelle du bureau).
+      // is_admin donne acces aux ecrans reserves au bureau meme si role_membre_bureau est faux sur
+      // cette appartenance precise -- voir supabase/schema.sql (is_app_admin, compte irrevocable
+      // depuis l'app, filet de securite en cas d'auto-exclusion accidentelle du bureau).
       enterApp(pseudo, membership.clubs.nom, {
-        encadrant: membership.role_encadrant,
         membreBureau: membership.role_membre_bureau || !!profile.is_admin,
       });
       return;
@@ -87,10 +86,10 @@ async function joinClub(clubId) {
   try {
     const user = await requireUser();
 
-    // Part non valide : le bureau confirme l'adhesion via "Valider membre" dans Gestion club.
+    // Part non valide, simple licencié : le bureau confirme l'adhesion via Gestion club.
     const { error: memberError } = await client
       .from('club_members')
-      .insert({ user_id: user.id, club_id: clubId, role_encadrant: false, role_membre_bureau: false, valide: false });
+      .insert({ user_id: user.id, club_id: clubId, role_membre_bureau: false, valide: false });
 
     // 23505 = deja membre de ce club (contrainte unique user_id+club_id) : pas grave, on bascule
     // simplement dessus.
@@ -140,11 +139,11 @@ async function handleClubCreate(event) {
       return;
     }
 
-    // Le createur du club est membre du bureau et encadrant en plus de joueur, des la creation,
-    // et deja valide (pas besoin de se confirmer lui-meme).
+    // Le createur du club est membre du bureau des la creation, et deja valide (pas besoin de se
+    // confirmer lui-meme).
     const { error: memberError } = await client
       .from('club_members')
-      .insert({ user_id: user.id, club_id: club.id, role_encadrant: true, role_membre_bureau: true, valide: true });
+      .insert({ user_id: user.id, club_id: club.id, role_membre_bureau: true, valide: true });
     if (memberError) {
       console.error('handleClubCreate: echec insertion club_members', memberError);
       setMessage(errorEl, `Club créé, mais impossible de te rattacher au club. (${memberError.message || memberError.code})`, true);

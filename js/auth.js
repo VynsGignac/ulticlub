@@ -51,7 +51,7 @@ async function fetchOwnProfile(userId) {
 function enterApp(pseudo, clubNom, roles) {
   document.getElementById('app-pseudo').textContent = pseudo;
   document.getElementById('app-club').textContent = clubNom || '';
-  renderTabs(roles || { encadrant: false, membreBureau: false });
+  renderTabs(roles || { membreBureau: false });
   showView('view-app');
   refreshCommunicationsBadge();
   refreshSaisonBadges();
