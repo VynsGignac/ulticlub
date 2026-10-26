@@ -43,7 +43,10 @@ async function renderClubInitiativesTab(domaine, contentElId) {
     .order('echeance', { ascending: true });
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'panel';
+  // panel-wide : contrairement a un formulaire, cette liste doit utiliser toute la largeur
+  // disponible (voir var(--content-max-width) dans index.html), pas la largeur plus etroite
+  // reservee aux formulaires a une colonne.
+  wrapper.className = 'panel panel-wide';
 
   const newButton = document.createElement('button');
   newButton.type = 'button';

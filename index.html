@@ -22,16 +22,23 @@
      onglets) : capee a une largeur "telephone" par defaut -- c'est ce qui donnait, sur un vrai
      ecran de bureau, l'impression d'une appli mobile egaree au milieu d'une page vide. A partir de
      640px de large (donc jamais sur un telephone ou dans l'APK, qui restent identiques), ces
-     colonnes s'elargissent pour occuper l'espace comme une vraie page web. Voir leurs usages
-     (var(--content-max-width) / var(--form-max-width)) plus bas dans ce fichier. */
+     colonnes s'elargissent pour occuper l'espace comme une vraie page web -- de facon fluide
+     (min(vw, plafond)) plutot qu'a un seul palier fixe, pour vraiment utiliser un grand ecran de
+     bureau et pas seulement un peu plus qu'un telephone. --content-max-width (listes, calendrier,
+     sous-onglets) monte beaucoup plus haut que --form-max-width (formulaires a une colonne comme
+     connexion/inscription ou creation d'un element : les rendre trop larges donnerait des champs de
+     saisie demesures, pas plus utilisables). Voir leurs usages plus bas dans ce fichier, et
+     .panel-wide pour les conteneurs qui doivent utiliser toute la largeur disponible plutot que
+     --form-max-width meme s'ils portent la classe .panel (listes de Administratif/Sport/Kid/Vie
+     Associative, voir js/administratif.js et js/club-initiatives.js). */
   :root {
     --content-max-width: 360px;
     --form-max-width: 320px;
   }
   @media (min-width: 640px) {
     :root {
-      --content-max-width: 640px;
-      --form-max-width: 480px;
+      --content-max-width: min(92vw, 1200px);
+      --form-max-width: min(90vw, 560px);
     }
   }
 
@@ -634,6 +641,15 @@
     background: #1a2028;
     border: 1px solid #2a333c;
     cursor: pointer;
+    /* display:flex + flex-direction:column couvre le cas a 2 lignes (nom + meta, voir
+       .split-view-item-name/.split-view-item-meta) partout, pas seulement dans .split-view-list --
+       sans ca, les 2 lignes se retrouvaient collees l'une a l'autre sur la meme ligne des qu'une
+       liste utilisant ce motif (Sport/Kid/Vie Associative, Administratif) etait affichee hors
+       fenetre modale. Sans effet sur les listes a simple noeud texte (une seule ligne de toute
+       facon).*/
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
   .club-results li:hover { border-color: #3b82f6; }
   .member-name-link {
@@ -680,11 +696,11 @@
     height: 100%;
     overflow-y: auto;
   }
+  /* Padding plus serre que la base .club-results li (8px au lieu de 10px 12px) : volontairement
+     compact, les 2 colonnes de .split-view sont deja etroites (voir commentaire plus haut). display
+     flex/colonne herite deja de la regle .club-results li generale. */
   .split-view-list .club-results li {
     padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
   }
   .split-view-item-name {
     font-size: 0.9em;
