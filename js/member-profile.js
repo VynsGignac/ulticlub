@@ -42,30 +42,22 @@ function closeMemberProfile() {
   }
 }
 
-// Roles d'un membre (bureau, administrateur, responsable d'equipe -- avec la ou les equipes
-// concernees) dans un club donne. Partage par TOUS les endroits qui affichent le profil d'un
-// membre (fiche plein ecran ci-dessous, volet de detail de Gestion membre, liste des joueurs d'une
-// equipe...) pour que ces roles restent coherents partout, pas juste dans Gestion membre.
+// Roles d'un membre (bureau, administrateur) dans un club donne. Partage par tous les endroits qui
+// affichent le profil d'un membre pour que ces roles restent coherents partout. Ne montre PLUS
+// "Responsable d'équipe" (2026-10-26) : l'onglet Équipe (team_managers) appartient a l'ancien
+// systeme, retire de la barre principale sans plus aucun moyen d'y nommer de responsable -- ce
+// role n'a donc plus lieu d'apparaitre ici.
 async function fetchMemberRoleLabels(targetUserId, clubId) {
   if (!clubId) return [];
 
-  const [{ data: membership }, { data: targetProfile }, { data: teams }] = await Promise.all([
+  const [{ data: membership }, { data: targetProfile }] = await Promise.all([
     client.from('club_members').select('role_membre_bureau').eq('user_id', targetUserId).eq('club_id', clubId).maybeSingle(),
     client.from('profiles').select('is_admin').eq('id', targetUserId).single(),
-    client.from('teams').select('id, nom').eq('club_id', clubId),
   ]);
 
   const roleLabels = [];
   if (membership && membership.role_membre_bureau) roleLabels.push('Membre du bureau');
   if (targetProfile && targetProfile.is_admin) roleLabels.push('Administrateur');
-
-  const teamIds = (teams || []).map((t) => t.id);
-  if (teamIds.length) {
-    const { data: managerRows } = await client.from('team_managers').select('team_id').eq('user_id', targetUserId).in('team_id', teamIds);
-    const teamNameById = new Map((teams || []).map((t) => [t.id, t.nom]));
-    const managedNames = (managerRows || []).map((r) => teamNameById.get(r.team_id)).filter(Boolean);
-    if (managedNames.length) roleLabels.push(`Responsable d’équipe (${managedNames.join(', ')})`);
-  }
 
   return roleLabels;
 }

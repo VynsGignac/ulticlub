@@ -1,11 +1,17 @@
 // ============================================================
-// Onglet Bureau : 2 sous-onglets.
+// Onglet Bureau : 3 sous-onglets.
 // - "Membre du bureau" : liste des membres du bureau du club actif -- des comptes de l'app
 //   (club_members.role_membre_bureau = true), PAS la liste des licencies de l'onglet Administratif.
 //   3 roles legaux (president/secretaire/tresorier), CUMULATIFS (un meme membre peut cumuler les 3,
 //   voir supabase/schema.sql -- role_president/role_secretaire/role_tresorier, 3 colonnes
 //   booleennes independantes plutot qu'une seule valeur) ; les autres sont de simples "membres du
 //   bureau" (aucun des 3 a true).
+// - "Responsables de commission" (2026-10-26) : qui est responsable de chacune des 5 commissions
+//   (Sport/Kid/Vie Associative/Communication/Disciplinaire, table club_commission_members -- voir
+//   js/club-initiatives.js), nomme par le president UNIQUEMENT -- exactement comme pour les roles
+//   legaux ci-dessus. Cette action n'est PLUS disponible depuis l'onglet de la commission elle-meme
+//   (retiree de club-initiatives.js lors de ce changement). Contrairement aux roles legaux, pas de
+//   contrainte "toujours attribue" ici : une commission peut rester sans responsable.
 // - "Réunion bureau" : liste tous les projets (toutes commissions confondues, table club_initiatives
 //   -- voir js/club-initiatives.js) portant une "Demande bureau" non vide, affichee ici en LECTURE
 //   SEULE, avec en face un champ libre "Décision bureau" -- le seul endroit ou ce champ est
@@ -26,7 +32,8 @@
 // - retirer un membre du bureau (il redevient simple licencie) -- bouton propose uniquement pour un
 //   membre SANS AUCUN role legal : un titulaire d'au moins un role legal doit d'abord en etre
 //   transfere (la base l'empecherait de toute facon, voir
-//   club_members_roles_legaux_requierent_bureau).
+//   club_members_roles_legaux_requierent_bureau) ;
+// - changer ou retirer le responsable de n'importe quelle commission (voir ci-dessus).
 // Ces actions restent, comme bureau_uniquement/responsable_uniquement ailleurs dans ce projet, des
 // restrictions cote interface uniquement -- la policy RLS reste large (tout le bureau peut modifier
 // un membre), a durcir plus tard si besoin.
@@ -66,10 +73,13 @@ function selectBureauSubTab(subTabId) {
     button.classList.toggle('active', button.dataset.subtab === subTabId);
   });
   document.getElementById('bureau-subtab-membres-bureau').style.display = subTabId === 'membres-bureau' ? '' : 'none';
+  document.getElementById('bureau-subtab-responsables-commission').style.display = subTabId === 'responsables-commission' ? '' : 'none';
   document.getElementById('bureau-subtab-reunion-bureau').style.display = subTabId === 'reunion-bureau' ? '' : 'none';
 
   if (subTabId === 'membres-bureau') {
     renderBureauMembresSubTab();
+  } else if (subTabId === 'responsables-commission') {
+    renderBureauResponsablesSubTab();
   } else {
     renderBureauReunionSubTab();
   }
@@ -284,6 +294,123 @@ async function handleAddBureauMember(userId) {
   await client.from('club_members').update({ role_membre_bureau: true }).eq('club_id', currentBureauClubId).eq('user_id', userId);
   closeModal();
   renderBureauMembresSubTab();
+}
+
+// --- Sous-onglet "Responsables de commission" -----------------------------------------------------
+// Qui est responsable de chacune des 5 commissions (table club_commission_members -- voir
+// js/club-initiatives.js), nomme par le president UNIQUEMENT, exactement comme pour les roles
+// legaux ci-dessus. Pas de contrainte "toujours attribue" ici (contrairement aux roles legaux) :
+// une commission peut rester sans responsable, d'ou le bouton "Retirer le responsable" en plus de
+// "Changer le responsable".
+
+async function renderBureauResponsablesSubTab() {
+  const contentEl = document.getElementById('bureau-responsables-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  if (!currentBureauClubId) {
+    const user = await requireUser();
+    const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
+    currentBureauClubId = profile ? profile.active_club_id : null;
+  }
+
+  if (!currentBureauClubId) {
+    contentEl.innerHTML = '<p class="message">Aucun club actif.</p>';
+    return;
+  }
+
+  const { data: members } = await client
+    .from('club_commission_members')
+    .select('id, domaine, licencie_id, nom, prenom, responsable')
+    .eq('club_id', currentBureauClubId);
+
+  const membersByDomaine = new Map(CLUB_COMMISSION_DOMAINE_ORDER.map((d) => [d, []]));
+  for (const member of members || []) {
+    if (!membersByDomaine.has(member.domaine)) membersByDomaine.set(member.domaine, []);
+    membersByDomaine.get(member.domaine).push(member);
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel panel-wide';
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  for (const domaine of CLUB_COMMISSION_DOMAINE_ORDER) {
+    const domaineMembers = membersByDomaine.get(domaine) || [];
+    const responsable = domaineMembers.find((m) => m.responsable);
+
+    const li = document.createElement('li');
+    li.style.cursor = 'default';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'split-view-item-name';
+    nameEl.textContent = CLUB_INITIATIVE_DOMAINE_LABELS[domaine] || domaine;
+    li.appendChild(nameEl);
+
+    const metaEl = document.createElement('span');
+    metaEl.className = 'split-view-item-meta';
+    metaEl.textContent = responsable
+      ? `Responsable : ${[responsable.prenom, responsable.nom].filter(Boolean).join(' ') || responsable.nom}`
+      : 'Aucun responsable désigné';
+    li.appendChild(metaEl);
+
+    if (currentBureauViewerIsPresident) {
+      const changeButton = document.createElement('button');
+      changeButton.type = 'button';
+      changeButton.className = 'action-button';
+      changeButton.textContent = 'Changer le responsable';
+      changeButton.addEventListener('click', () => openResponsableCommissionPicker(domaine, domaineMembers));
+      li.appendChild(changeButton);
+
+      if (responsable) {
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'link';
+        removeButton.textContent = 'Retirer le responsable';
+        removeButton.addEventListener('click', () => handleSetResponsableCommission(responsable.id, false));
+        li.appendChild(removeButton);
+      }
+    }
+
+    listEl.appendChild(li);
+  }
+  wrapper.appendChild(listEl);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
+function openResponsableCommissionPicker(domaine, domaineMembers) {
+  const body = showModal(`Responsable ${CLUB_INITIATIVE_DOMAINE_LABELS[domaine] || domaine}`);
+  body.innerHTML = '';
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  if (!domaineMembers.length) {
+    listEl.innerHTML = '<li class="empty">Aucun membre dans cette commission.</li>';
+  } else {
+    for (const member of domaineMembers) {
+      const li = document.createElement('li');
+      li.textContent = [member.prenom, member.nom].filter(Boolean).join(' ') || member.nom;
+      li.addEventListener('click', () => handleSetResponsableCommission(member.id, true));
+      listEl.appendChild(li);
+    }
+  }
+  body.appendChild(listEl);
+}
+
+async function handleSetResponsableCommission(memberId, makeResponsable) {
+  if (makeResponsable) {
+    // Un seul responsable par commission : retire d'abord le statut a l'ancien titulaire (meme
+    // domaine/club) avant de l'attribuer au nouveau -- jamais l'inverse, pour qu'il n'y ait jamais
+    // 2 responsables en meme temps pour la meme commission.
+    const { data: member } = await client.from('club_commission_members').select('domaine').eq('id', memberId).single();
+    if (member) {
+      await client.from('club_commission_members').update({ responsable: false }).eq('club_id', currentBureauClubId).eq('domaine', member.domaine).eq('responsable', true);
+    }
+  }
+  await client.from('club_commission_members').update({ responsable: makeResponsable }).eq('id', memberId);
+  closeModal();
+  renderBureauResponsablesSubTab();
 }
 
 // --- Sous-onglet "Réunion bureau" ---------------------------------------------------------------

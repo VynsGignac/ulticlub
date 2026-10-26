@@ -1,29 +1,37 @@
 // ============================================================
-// Mecanisme partage par les onglets Sport, Kid et Vie Associative (refonte 2026-10-26, mise en page
-// 3 colonnes) : chaque onglet est une "commission" avec :
-// - a gauche, ses membres (table club_commission_members, choisis dans le roster club_licencies de
-//   l'onglet Administratif -- PAS dans les comptes de l'app), le ou les responsables de commission
-//   mis en evidence en haut de la liste ; ajouter/retirer un membre ou (dé)nommer un responsable est
-//   reserve au bureau (ca necessite de lire club_licencies, reservee au bureau -- voir
-//   supabase/schema.sql) ;
-// - au centre (colonne large), ses projets (table club_initiatives, colonne domaine) tries par
-//   echeance la plus proche, CHAQUE entree affichant toutes ses informations (pas seulement le nom)
-//   -- cliquer dessus ouvre quand meme le formulaire de modification, pour les changer ;
-// - a droite, un formulaire de creation de projet integre directement dans la colonne (pas dans une
-//   fenetre modale), ouvert a tout membre du club.
-// Les 3 onglets appellent les memes fonctions generiques ci-dessous avec leur propre "domaine" -- un
-// seul jeu de code pour les trois, puisqu'ils se construisent exactement de la meme facon.
-// Chaque projet porte aussi "Demande bureau" (champ libre, editable ici) et "Décision bureau"
-// (reponse du bureau, affichee ici en lecture seule -- editable uniquement depuis Bureau > Réunion
-// bureau, voir js/bureau.js). Chaque projet apparait egalement dans l'onglet Calendrier a la date de
-// son echeance (voir js/calendar.js), filtrable par commission comme les autres natures d'evenement.
+// Mecanisme de "commission" partage par 5 onglets : Sport, Kid, Vie Associative, Communication et
+// Disciplinaire (ces 2 derniers ajoutes le 2026-10-26). Tous les 5 ont une colonne "membres de la
+// commission" (table club_commission_members, choisis dans le roster club_licencies de l'onglet
+// Administratif -- PAS dans les comptes de l'app) ; ajouter/retirer un membre est reserve au bureau
+// (ca necessite de lire club_licencies, reservee au bureau -- voir supabase/schema.sql). Nommer le
+// RESPONSABLE d'une commission ne se fait plus ici (retire le 2026-10-26) : c'est desormais reserve
+// au president, depuis Bureau > Responsables de commission (voir js/bureau.js) -- exactement comme
+// pour les roles legaux president/secretaire/tresorier.
+//
+// Seuls Sport, Kid et Vie Associative ont EN PLUS une mise en page a 3 colonnes (voir
+// renderClubInitiativesTab) : membres a gauche, projets (table club_initiatives, colonne domaine,
+// tries par echeance la plus proche) au centre, formulaire de creation integre a droite. Chaque
+// projet porte aussi "Demande bureau" (champ libre, editable ici) et "Décision bureau" (reponse du
+// bureau, affichee ici en lecture seule -- editable uniquement depuis Bureau > Réunion bureau, voir
+// js/bureau.js), et apparait dans l'onglet Calendrier a la date de son echeance (voir
+// js/calendar.js), filtrable par commission. Communication et Disciplinaire n'ont PAS cette partie
+// "projets" (voir renderCommissionMembersOnlyTab) -- juste la colonne membres, seule.
 // ============================================================
 
 const CLUB_INITIATIVE_STATUTS = ['Non démarré', 'Amorcé', 'En cours', 'Terminé'];
 const CLUB_INITIATIVE_PERIODICITES = ['Ponctuel', 'Hebdomadaire', 'Mensuel', 'Trimestriel', 'Annuel'];
-// Libelles des domaines, reutilises par js/calendar.js (points par commission) et js/bureau.js
-// (sous-onglet Réunion bureau).
-const CLUB_INITIATIVE_DOMAINE_LABELS = { sport: 'Sport', kid: 'Kid', vie_associative: 'Vie Associative' };
+// Libelles des 5 commissions, reutilises par js/calendar.js (points par commission -- seules
+// sport/kid/vie_associative y apparaissent, les 2 autres n'ont pas de projets) et js/bureau.js
+// (sous-onglets Réunion bureau et Responsables de commission).
+const CLUB_INITIATIVE_DOMAINE_LABELS = {
+  sport: 'Sport',
+  kid: 'Kid',
+  vie_associative: 'Vie Associative',
+  communication: 'Communication',
+  disciplinaire: 'Disciplinaire',
+};
+// Ordre d'affichage des 5 commissions dans Bureau > Responsables de commission (voir js/bureau.js).
+const CLUB_COMMISSION_DOMAINE_ORDER = ['sport', 'kid', 'vie_associative', 'communication', 'disciplinaire'];
 
 // Domaine/club/role actifs : mis a jour juste avant chaque rendu complet de l'onglet, lus par les
 // actions declenchees depuis les fenetres modales (edition de projet, gestion des membres).
@@ -38,6 +46,8 @@ let currentInitiativeLinkStatusByLicencieId = new Map();
 function renderSportTab() { renderClubInitiativesTab('sport', 'sport-content'); }
 function renderKidTab() { renderClubInitiativesTab('kid', 'kid-content'); }
 function renderVieAssociativeTab() { renderClubInitiativesTab('vie_associative', 'vie-associative-content'); }
+function renderCommunicationTab() { renderCommissionMembersOnlyTab('communication', 'communication-content'); }
+function renderDisciplinaireTab() { renderCommissionMembersOnlyTab('disciplinaire', 'disciplinaire-content'); }
 
 async function renderClubInitiativesTab(domaine, contentElId) {
   currentInitiativeDomaine = domaine;
@@ -82,7 +92,69 @@ async function renderClubInitiativesTab(domaine, contentElId) {
   contentEl.appendChild(layout);
 }
 
+// Variante de renderClubInitiativesTab pour Communication et Disciplinaire (2026-10-26) : meme
+// colonne "membres de la commission", mais SEULE (pas de projets/club_initiatives pour ces 2
+// domaines) -- rendue en pleine largeur comme une liste classique (Administratif, Bureau...),
+// plutot que dans la grille 3 colonnes reservee a Sport/Kid/Vie Associative.
+async function renderCommissionMembersOnlyTab(domaine, contentElId) {
+  currentInitiativeDomaine = domaine;
+  const contentEl = document.getElementById(contentElId);
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  const user = await requireUser();
+  const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
+  currentInitiativeClubId = profile ? profile.active_club_id : null;
+
+  if (!currentInitiativeClubId) {
+    contentEl.innerHTML = '<p class="message">Aucun club actif.</p>';
+    return;
+  }
+
+  const [{ data: members }, { data: membership }, { data: linkStatuses }] = await Promise.all([
+    client
+      .from('club_commission_members')
+      .select('id, licencie_id, nom, prenom, responsable')
+      .eq('club_id', currentInitiativeClubId)
+      .eq('domaine', domaine)
+      .order('nom', { ascending: true }),
+    client.from('club_members').select('role_membre_bureau').eq('user_id', user.id).eq('club_id', currentInitiativeClubId).maybeSingle(),
+    client.rpc('club_licencies_link_status', { target_club_id: currentInitiativeClubId }),
+  ]);
+  currentInitiativeIsBureau = !!(membership && membership.role_membre_bureau);
+  currentInitiativeLinkStatusByLicencieId = new Map((linkStatuses || []).map((s) => [s.licencie_id, s]));
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel panel-wide';
+  wrapper.appendChild(buildCommissionMembersContent(members || [], contentElId));
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
 // --- Colonne de gauche : membres de la commission --------------------------------------------
+
+// Liste + bouton "Ajouter un membre" seuls (sans le titre ni la carte .commission-column), pour
+// pouvoir etre reutilises tels quels par renderCommissionMembersOnlyTab ci-dessus (Communication/
+// Disciplinaire) comme par buildCommissionMembersColumn ci-dessous (Sport/Kid/Vie Associative).
+function buildCommissionMembersContent(members, contentElId) {
+  const fragment = document.createDocumentFragment();
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results commission-members-list';
+  renderCommissionMembersListInto(listEl, members, contentElId);
+  fragment.appendChild(listEl);
+
+  if (currentInitiativeIsBureau) {
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'action-button';
+    addButton.textContent = 'Ajouter un membre';
+    addButton.addEventListener('click', () => openCommissionMemberPicker(contentElId));
+    fragment.appendChild(addButton);
+  }
+
+  return fragment;
+}
 
 function buildCommissionMembersColumn(members, contentElId) {
   const column = document.createElement('div');
@@ -91,20 +163,7 @@ function buildCommissionMembersColumn(members, contentElId) {
   const title = document.createElement('h3');
   title.textContent = 'Membres de la commission';
   column.appendChild(title);
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'club-results commission-members-list';
-  renderCommissionMembersListInto(listEl, members, contentElId);
-  column.appendChild(listEl);
-
-  if (currentInitiativeIsBureau) {
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = 'action-button';
-    addButton.textContent = 'Ajouter un membre';
-    addButton.addEventListener('click', () => openCommissionMemberPicker(contentElId));
-    column.appendChild(addButton);
-  }
+  column.appendChild(buildCommissionMembersContent(members, contentElId));
 
   return column;
 }
@@ -168,20 +227,11 @@ async function refreshCommissionMembersColumn(contentElId) {
   renderCommissionMembersListInto(listEl, members || [], contentElId);
 }
 
+// Nommer/retirer le responsable de la commission ne se fait plus ici (voir le commentaire en tete
+// de fichier) : seule l'action "Retirer de la commission" reste disponible depuis cet onglet.
 function openCommissionMemberActions(member, contentElId) {
   const body = showModal([member.prenom, member.nom].filter(Boolean).join(' ') || member.nom);
   body.innerHTML = '';
-
-  const toggleButton = document.createElement('button');
-  toggleButton.type = 'button';
-  toggleButton.className = 'action-button';
-  toggleButton.textContent = member.responsable ? 'Retirer des responsables' : 'Nommer responsable de commission';
-  toggleButton.addEventListener('click', async () => {
-    await client.from('club_commission_members').update({ responsable: !member.responsable }).eq('id', member.id);
-    closeModal();
-    refreshCommissionMembersColumn(contentElId);
-  });
-  body.appendChild(toggleButton);
 
   const removeButton = document.createElement('button');
   removeButton.type = 'button';

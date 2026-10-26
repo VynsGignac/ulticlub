@@ -1263,16 +1263,18 @@ create policy "Les membres du club modifient les projets de leur club"
     where cm.club_id = club_initiatives.club_id and cm.user_id = auth.uid()
   ));
 
--- --- Membres de commission (colonne de gauche des onglets Sport / Kid / Vie Associative) ---------
+-- --- Membres de commission (colonne "membres" de Sport/Kid/Vie Associative/Communication/
+-- Disciplinaire, voir js/club-initiatives.js) ----------------------------------------------------
 -- Qui fait partie de la "commission" de ce domaine, et qui en est responsable (mis en evidence en
--- haut de la liste, voir js/club-initiatives.js). Les membres sont choisis dans le roster
--- club_licencies (onglet Administratif), PAS dans les comptes de l'app. nom/prenom sont dupliques
--- ici au moment de l'ajout (plutot qu'un JOIN vers club_licencies a la lecture) car club_licencies
--- est reservee au bureau (donnees sensibles) alors que cette liste doit etre visible par tout le
--- monde sur ces onglets -- un JOIN la bloquerait pour les non-bureau. Ajouter/retirer un membre ou
--- le nommer responsable necessite donc deja de pouvoir lire club_licencies pour choisir qui ajouter
--- : ces 3 actions sont de fait reservees au bureau, meme si le reste de l'onglet (projets) reste
--- ouvert a tous.
+-- haut de la liste). Les membres sont choisis dans le roster club_licencies (onglet Administratif),
+-- PAS dans les comptes de l'app. nom/prenom sont dupliques ici au moment de l'ajout (plutot qu'un
+-- JOIN vers club_licencies a la lecture) car club_licencies est reservee au bureau (donnees
+-- sensibles) alors que cette liste doit etre visible par tout le monde sur ces onglets -- un JOIN
+-- la bloquerait pour les non-bureau. Ajouter/retirer un membre necessite donc deja de pouvoir lire
+-- club_licencies pour choisir qui ajouter : ces 2 actions sont de fait reservees au bureau, meme si
+-- le reste de l'onglet (projets, pour Sport/Kid/Vie Associative) reste ouvert a tous. Nommer le
+-- responsable (colonne "responsable" ci-dessous) est desormais reserve au president, depuis
+-- Bureau > Responsables de commission (voir js/bureau.js) -- plus modifiable depuis ces onglets.
 
 create table if not exists public.club_commission_members (
   id uuid primary key default gen_random_uuid(),
@@ -1287,9 +1289,12 @@ create table if not exists public.club_commission_members (
   unique (domaine, licencie_id)
 );
 
+-- Domaine etendu (2026-10-26) a communication/disciplinaire : ces 2 onglets partagent desormais la
+-- gestion des membres de commission avec Sport/Kid/Vie Associative (voir js/club-initiatives.js),
+-- mais n'ont pas de projets (club_initiatives.domaine n'inclut PAS ces 2 valeurs, volontairement).
 alter table public.club_commission_members drop constraint if exists club_commission_members_domaine_check;
 alter table public.club_commission_members add constraint club_commission_members_domaine_check
-  check (domaine in ('sport', 'kid', 'vie_associative'));
+  check (domaine in ('sport', 'kid', 'vie_associative', 'communication', 'disciplinaire'));
 
 alter table public.club_commission_members enable row level security;
 

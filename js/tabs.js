@@ -1,19 +1,24 @@
 // ============================================================
 // Onglets de l'espace club. Refonte de la barre principale (2026-10-26) : on ne garde que
 // "Calendrier" de l'ancienne barre, et on la remplace par Bureau / Sport / Kid / Communication /
-// Vie Associative / Administratif / Disciplinaire. "Communication" et "Disciplinaire" restent de
-// simples placeholders ("contenu a venir") en attendant d'etre definis. "Administratif" (voir
+// Vie Associative / Administratif / Disciplinaire. "Communication" et "Disciplinaire" (2026-10-26)
+// partagent avec Sport/Kid/Vie Associative la gestion des membres de commission (table
+// club_commission_members, voir js/club-initiatives.js) -- mais SANS la partie "projets" : aucun
+// bouton "Créer un projet" ni liste de projets pour ces 2 onglets, juste la liste de membres et
+// son bouton "Ajouter un membre". "Administratif" (voir
 // js/administratif.js) est reserve au role "membre du bureau" car il donne acces a des donnees
 // personnelles de licencies (date de naissance, telephone, mail). "Ulticlub" (voir js/ulticlub.js,
 // ajoute le 2026-10-26) est lui aussi reserve au bureau : administration des comptes du club --
 // valider les admissions en attente, visualiser tous les comptes membres, en retirer un si besoin.
 // "Bureau" (voir js/bureau.js)
 // liste qui est membre du bureau et qui tient les 3 roles legaux (president/secretaire/tresorier),
-// ouvert a tous en lecture -- seul le president peut transferer un role legal. "Sport", "Kid" et
-// "Vie Associative" (voir js/club-initiatives.js) partagent le meme mecanisme generique de liste de
-// projets par domaine, ouvert a tous. Les 2 seuls roles de compte existent desormais : "membre du
-// bureau" (role_membre_bureau) et le role de base implicite "licencié" -- l'ancien role "encadrant"
-// a ete retire (voir supabase/schema.sql).
+// ouvert a tous en lecture -- seul le president peut transferer un role legal, ou (sous-onglet
+// "Responsables de commission", 2026-10-26) nommer le responsable de chacune des 5 commissions
+// (Sport/Kid/Vie Associative/Communication/Disciplinaire) -- plus modifiable depuis l'onglet de la
+// commission elle-meme. "Sport", "Kid" et "Vie Associative" (voir js/club-initiatives.js)
+// partagent le meme mecanisme generique de liste de projets par domaine, ouvert a tous. Les 2
+// seuls roles de compte existent desormais : "membre du bureau" (role_membre_bureau) et le role de
+// base implicite "licencié" -- l'ancien role "encadrant" a ete retire (voir supabase/schema.sql).
 //
 // Les anciens onglets (Saison, Vie de club, Equipe, Gestion club) ont ete retires de TABS mais leur
 // code reste intact et intentionnellement inchange (team-detail.js, club-management.js,
@@ -49,6 +54,8 @@ const CUSTOM_TAB_CONTAINERS = {
   sport: { containerId: 'tab-content-sport', render: renderSportTab },
   kid: { containerId: 'tab-content-kid', render: renderKidTab },
   'vie-associative': { containerId: 'tab-content-vie-associative', render: renderVieAssociativeTab },
+  communication: { containerId: 'tab-content-communication', render: renderCommunicationTab },
+  disciplinaire: { containerId: 'tab-content-disciplinaire', render: renderDisciplinaireTab },
   saison: { containerId: 'tab-content-saison', render: renderSaisonTab },
   'vie-club': { containerId: 'tab-content-vie-club', render: renderVieClubTab },
   'gestion-equipe': { containerId: 'tab-content-gestion-equipe', render: renderGestionEquipeTab },
