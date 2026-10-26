@@ -1,11 +1,12 @@
 // ============================================================
 // Onglets de l'espace club. Refonte de la barre principale (2026-10-26) : on ne garde que
 // "Calendrier" de l'ancienne barre, et on la remplace par Bureau / Sport / Kid / Communication /
-// Vie Associative / Administratif / Disciplinaire. Tous vides pour l'instant (simple placeholder
-// "contenu a venir", meme mecanisme que "Vie de club" avant l'ajout des projets) et visibles par
-// tout le monde, SAUF "Administratif" -- premier a etre rempli (voir js/administratif.js), reserve
-// au role "membre du bureau" car il donne acces a des donnees personnelles de licencies (date de
-// naissance, telephone, mail). Les 2 seuls roles existants desormais sont "membre du bureau"
+// Vie Associative / Administratif / Disciplinaire. "Bureau", "Communication" et "Disciplinaire"
+// restent de simples placeholders ("contenu a venir") en attendant d'etre definis. "Administratif"
+// (voir js/administratif.js) est reserve au role "membre du bureau" car il donne acces a des
+// donnees personnelles de licencies (date de naissance, telephone, mail). "Sport", "Kid" et "Vie
+// Associative" (voir js/club-initiatives.js) partagent le meme mecanisme generique de liste de
+// projets par domaine, ouvert a tous. Les 2 seuls roles existants desormais sont "membre du bureau"
 // (role_membre_bureau) et le role de base implicite "licencié" -- l'ancien role "encadrant" a ete
 // retire (voir supabase/schema.sql).
 //
@@ -37,6 +38,9 @@ const TABS = [
 const CUSTOM_TAB_CONTAINERS = {
   calendrier: { containerId: 'tab-content-calendrier', render: renderCalendrierTab },
   administratif: { containerId: 'tab-content-administratif', render: renderAdministratifTab },
+  sport: { containerId: 'tab-content-sport', render: renderSportTab },
+  kid: { containerId: 'tab-content-kid', render: renderKidTab },
+  'vie-associative': { containerId: 'tab-content-vie-associative', render: renderVieAssociativeTab },
   saison: { containerId: 'tab-content-saison', render: renderSaisonTab },
   'vie-club': { containerId: 'tab-content-vie-club', render: renderVieClubTab },
   'gestion-equipe': { containerId: 'tab-content-gestion-equipe', render: renderGestionEquipeTab },

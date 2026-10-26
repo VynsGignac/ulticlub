@@ -1009,3 +1009,72 @@ create policy "Le bureau supprime un licencie de son club"
   on public.club_licencies for delete
   to authenticated
   using (public.is_club_bureau(club_id));
+
+-- --- Projets par domaine (onglets Sport / Kid / Vie Associative) ---------------------------------
+-- Les 3 onglets partagent exactement le meme mecanisme (voir js/club-initiatives.js), seule la
+-- colonne "domaine" les distingue. Listes par echeance la plus proche ; seuls nom et echeance
+-- apparaissent dans la liste, le reste (porteur, description, statut, periodicite) dans le detail.
+-- Ouvert a tout membre du club (lecture ET ecriture), pas reserve au bureau -- contrairement a
+-- club_licencies, rien ici n'est une donnee personnelle sensible.
+
+create table if not exists public.club_initiatives (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  domaine text not null,
+  nom text not null,
+  porteur text,
+  echeance date not null,
+  description text,
+  statut text not null default 'Non démarré',
+  periodicite text not null default 'Ponctuel',
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.club_initiatives drop constraint if exists club_initiatives_domaine_check;
+alter table public.club_initiatives add constraint club_initiatives_domaine_check
+  check (domaine in ('sport', 'kid', 'vie_associative'));
+
+alter table public.club_initiatives drop constraint if exists club_initiatives_statut_check;
+alter table public.club_initiatives add constraint club_initiatives_statut_check
+  check (statut in ('Non démarré', 'Amorcé', 'En cours', 'Terminé'));
+
+alter table public.club_initiatives drop constraint if exists club_initiatives_periodicite_check;
+alter table public.club_initiatives add constraint club_initiatives_periodicite_check
+  check (periodicite in ('Ponctuel', 'Hebdomadaire', 'Mensuel', 'Trimestriel', 'Annuel'));
+
+alter table public.club_initiatives enable row level security;
+
+drop policy if exists "Les membres du club lisent les projets de leur club" on public.club_initiatives;
+create policy "Les membres du club lisent les projets de leur club"
+  on public.club_initiatives for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_initiatives.club_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Les membres du club creent un projet dans leur club" on public.club_initiatives;
+create policy "Les membres du club creent un projet dans leur club"
+  on public.club_initiatives for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and exists (
+      select 1 from public.club_members cm
+      where cm.club_id = club_initiatives.club_id and cm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Les membres du club modifient les projets de leur club" on public.club_initiatives;
+create policy "Les membres du club modifient les projets de leur club"
+  on public.club_initiatives for update
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_initiatives.club_id and cm.user_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_initiatives.club_id and cm.user_id = auth.uid()
+  ));
