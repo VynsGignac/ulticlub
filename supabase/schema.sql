@@ -272,6 +272,15 @@ create policy "Les utilisateurs quittent un club en leur nom"
   to authenticated
   using (auth.uid() = user_id);
 
+-- Le bureau peut retirer n'importe quel compte de son club (onglet Ulticlub, voir js/ulticlub.js)
+-- -- en plus de la policy ci-dessus qui ne permet qu'a un utilisateur de quitter EN SON PROPRE NOM.
+-- Les 2 policies DELETE coexistent (permissives, combinees par Postgres avec OR).
+drop policy if exists "Le bureau retire un compte de son club" on public.club_members;
+create policy "Le bureau retire un compte de son club"
+  on public.club_members for delete
+  to authenticated
+  using (public.is_club_bureau(club_id));
+
 -- Club "actif" (celui affiche par defaut dans les autres onglets), parmi les appartenances de
 -- club_members ci-dessus. Migre automatiquement l'ancien modele mono-club (profiles.club_id +
 -- roles directement sur profiles) si ce projet l'utilisait encore -- sans effet si deja fait.

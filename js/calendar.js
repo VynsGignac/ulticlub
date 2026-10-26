@@ -1,24 +1,21 @@
 // ============================================================
-// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche jusqu'a plusieurs points
-// colores sur les jours ayant au moins un evenement (parmi les equipes dont l'utilisateur est
-// membre, et les clubs dont il est membre), un point par "nature" d'evenement presente ce jour-la
-// (voir EVENT_KIND_ORDER plus bas) -- y compris les occurrences des evenements cycliques
-// (hebdomadaires). Les projets des onglets Sport/Kid/Vie Associative (table club_initiatives, voir
-// js/club-initiatives.js) apparaissent eux aussi, a la date de leur echeance -- un point par
-// commission (domaine), filtrable independamment comme les autres natures via la legende. Les dates
-// limites de candidature des selections d'equipe (filtrees par portee comme dans l'onglet Saison,
-// voir selectionMatchesProfile dans js/saison.js) colorent toute la case en gris clair plutot que
-// d'ajouter un point. Cliquer sur un jour marque (point ou case grisee) affiche le detail en
-// dessous du calendrier.
+// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche un point colore par
+// commission (Sport/Kid/Vie Associative, voir js/club-initiatives.js) sur les jours ayant au moins
+// un projet dont l'echeance tombe ce jour-la, parmi les clubs dont l'utilisateur est membre --
+// filtrable independamment par commission via la legende cliquable. Cliquer sur un jour marque
+// affiche le detail en dessous du calendrier.
+//
+// Nettoyage 2026-10-26 : retire les evenements d'equipe/de club et les dates limites de
+// candidature aux selections (team_events/club_events/team_selections), qui appartenaient aux
+// anciens onglets Gestion club/Equipe/Saison -- retires de la barre principale (voir js/tabs.js) et
+// sans plus aucun moyen d'en creer depuis l'app. Ce code (team-detail.js, club-management.js,
+// saison.js, selection-create.js, club-event-create.js...) reste intact mais n'est plus affiche
+// nulle part, y compris ici desormais.
 // ============================================================
 
-// Ordre d'affichage fixe des points (de gauche a droite) quand plusieurs natures d'evenement
-// tombent le meme jour -- garde leur position stable d'un jour a l'autre.
-const EVENT_KIND_ORDER = ['equipe', 'responsable', 'club', 'bureau'];
 // Domaines des projets (voir club_initiatives.domaine) dans leur ordre d'affichage -- chacun a son
-// propre point de couleur et son propre interrupteur de legende, independant de EVENT_KIND_ORDER.
+// propre point de couleur et son propre interrupteur de legende.
 const CALENDRIER_INITIATIVE_DOMAINES = ['sport', 'kid', 'vie_associative'];
-const CALENDRIER_DOT_ORDER = [...EVENT_KIND_ORDER, ...CALENDRIER_INITIATIVE_DOMAINES.map((d) => `initiative-${d}`)];
 
 const CALENDRIER_MOIS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -31,13 +28,9 @@ let calendrierYear = calendrierToday.getFullYear();
 let calendrierMonth = calendrierToday.getMonth();
 let calendrierItemsByDate = new Map();
 let calendrierSelectedDate = null;
-// Natures actuellement affichees (legende cliquable, voir toggleCalendrierKind) : toutes visibles
-// par defaut. 'selection' est a part des 4 "kind" d'evenement (equipe/responsable/club/bureau) ;
-// les projets ont leur propre cle par domaine ("initiative-sport", etc).
-let calendrierVisibleKinds = new Set([
-  'equipe', 'responsable', 'club', 'bureau', 'selection',
-  ...CALENDRIER_INITIATIVE_DOMAINES.map((d) => `initiative-${d}`),
-]);
+// Commissions actuellement affichees (legende cliquable, voir toggleCalendrierKind) : toutes
+// visibles par defaut.
+let calendrierVisibleKinds = new Set(CALENDRIER_INITIATIVE_DOMAINES.map((d) => `initiative-${d}`));
 
 // Numero de semaine ISO 8601 (lundi = debut de semaine, la semaine 1 est celle contenant le
 // premier jeudi de l'annee) -- methode standard : recaler sur le jeudi de la semaine puis compter
@@ -59,109 +52,28 @@ function toLocalIsoDate(date) {
   return `${y}-${m}-${d}`;
 }
 
-// Deroule un evenement (eventuellement cyclique/hebdomadaire) en l'ensemble des jours qu'il
-// occupe, du debut a la derniere occurrence.
-function expandEventDates(evt) {
-  const dates = new Set();
-  const start = new Date(`${evt.date_debut}T00:00:00`);
-  const end = new Date(`${evt.date_fin}T00:00:00`);
-  const spanDays = Math.max(0, Math.round((end - start) / 86400000));
-  const lastOccurrence = evt.cyclique && evt.date_derniere_occurrence
-    ? new Date(`${evt.date_derniere_occurrence}T00:00:00`)
-    : start;
-
-  const occurrenceStart = new Date(start);
-  // Garde-fou : jamais plus de 260 occurrences (~5 ans hebdomadaires) pour eviter une boucle
-  // interminable en cas de date de derniere occurrence aberrante.
-  for (let i = 0; i < 260 && occurrenceStart <= lastOccurrence; i++) {
-    for (let d = 0; d <= spanDays; d++) {
-      const day = new Date(occurrenceStart);
-      day.setDate(day.getDate() + d);
-      dates.add(toLocalIsoDate(day));
-    }
-    if (!evt.cyclique) break;
-    occurrenceStart.setDate(occurrenceStart.getDate() + 7);
-  }
-  return dates;
-}
-
-// Fusionne les evenements d'equipe (des equipes dont on est membre), les evenements de club (de
-// tous les clubs dont on est membre, quel que soit le club actif) et les dates limites de
-// candidature des selections d'equipe (filtrees par portee -- genre/age -- comme dans l'onglet
-// Saison, voir selectionMatchesProfile dans js/saison.js), et les indexe par jour pour le rendu de
-// la grille et le detail au clic.
+// Recupere les projets (club_initiatives) de tous les clubs dont l'utilisateur est membre, et les
+// indexe par jour d'echeance pour le rendu de la grille et le detail au clic.
 async function fetchCalendrierItemsByDate() {
   const user = await requireUser();
 
-  const [{ data: teamMemberships }, { data: clubMemberships }, { data: ownProfile }] = await Promise.all([
-    client.from('team_members').select('team_id').eq('user_id', user.id),
-    client.from('club_members').select('club_id').eq('user_id', user.id),
-    client.from('profiles').select('genre, date_naissance').eq('id', user.id).single(),
-  ]);
-  const teamIds = (teamMemberships || []).map((m) => m.team_id);
+  const { data: clubMemberships } = await client.from('club_members').select('club_id').eq('user_id', user.id);
   const clubIds = (clubMemberships || []).map((m) => m.club_id);
 
-  const eventFields = 'id, nom, date_debut, date_fin, heure_debut, heure_fin, lieu, commentaire, cyclique, date_derniere_occurrence';
-  const [teamEventsRes, clubEventsRes, selectionsRes, initiativesRes] = await Promise.all([
-    teamIds.length
-      ? client.from('team_events').select(`${eventFields}, responsable_uniquement, teams (nom)`).in('team_id', teamIds)
-      : Promise.resolve({ data: [] }),
-    clubIds.length
-      ? client.from('club_events').select(`${eventFields}, bureau_uniquement, clubs (nom)`).in('club_id', clubIds)
-      : Promise.resolve({ data: [] }),
-    teamIds.length
-      ? client.from('team_selections').select('id, date_limite_candidature, commentaire, cible_masculin, cible_feminin, nee_avant_le, nee_apres_le, teams (nom)').in('team_id', teamIds)
-      : Promise.resolve({ data: [] }),
-    clubIds.length
-      ? client.from('club_initiatives').select('id, domaine, nom, porteur, echeance, description, statut, clubs (nom)').in('club_id', clubIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const { data: initiatives } = clubIds.length
+    ? await client.from('club_initiatives').select('id, domaine, nom, porteur, echeance, description, statut, clubs (nom)').in('club_id', clubIds)
+    : { data: [] };
 
   const itemsByDate = new Map();
-  const addItem = (isoDate, item) => {
-    if (!itemsByDate.has(isoDate)) itemsByDate.set(isoDate, []);
-    itemsByDate.get(isoDate).push(item);
-  };
-
-  const addEvent = (evt, sourceLabel, kind) => {
-    const detail = {
-      type: 'event',
-      kind,
-      nom: evt.nom,
-      heureDebut: evt.heure_debut,
-      heureFin: evt.heure_fin,
-      lieu: evt.lieu,
-      commentaire: evt.commentaire,
-      sourceLabel,
-    };
-    for (const isoDate of expandEventDates(evt)) addItem(isoDate, detail);
-  };
-
-  for (const evt of teamEventsRes.data || []) {
-    addEvent(evt, evt.teams ? evt.teams.nom : 'Équipe', evt.responsable_uniquement ? 'responsable' : 'equipe');
-  }
-  for (const evt of clubEventsRes.data || []) {
-    addEvent(evt, evt.clubs ? `Club — ${evt.clubs.nom}` : 'Club', evt.bureau_uniquement ? 'bureau' : 'club');
-  }
-
-  for (const initiative of initiativesRes.data || []) {
-    addItem(initiative.echeance, {
-      type: 'initiative',
+  for (const initiative of initiatives || []) {
+    if (!itemsByDate.has(initiative.echeance)) itemsByDate.set(initiative.echeance, []);
+    itemsByDate.get(initiative.echeance).push({
       domaine: initiative.domaine,
       nom: initiative.nom,
       porteur: initiative.porteur,
       description: initiative.description,
       statut: initiative.statut,
       sourceLabel: initiative.clubs ? initiative.clubs.nom : 'Club',
-    });
-  }
-
-  for (const sel of selectionsRes.data || []) {
-    if (!selectionMatchesProfile(sel, ownProfile || {})) continue;
-    addItem(sel.date_limite_candidature, {
-      type: 'selection',
-      sourceLabel: sel.teams ? sel.teams.nom : 'Équipe',
-      commentaire: sel.commentaire,
     });
   }
 
@@ -196,31 +108,23 @@ function renderCalendrierDayDetail(isoDate) {
     li.classList.add('event-detail-item');
 
     const nomEl = document.createElement('strong');
-    nomEl.textContent = item.type === 'selection' ? `Sélection — ${item.sourceLabel}` : item.nom;
+    nomEl.textContent = item.nom;
     li.appendChild(nomEl);
 
     const meta = document.createElement('div');
     meta.className = 'communication-meta';
-    if (item.type === 'event') {
-      const heures = item.heureDebut && item.heureFin ? `${item.heureDebut.slice(0, 5)} – ${item.heureFin.slice(0, 5)}` : '';
-      meta.textContent = [item.sourceLabel, heures, item.lieu].filter(Boolean).join(' · ');
-    } else if (item.type === 'initiative') {
-      meta.textContent = [
-        CLUB_INITIATIVE_DOMAINE_LABELS[item.domaine] || item.domaine,
-        item.sourceLabel,
-        item.porteur ? `Porteur : ${item.porteur}` : null,
-        `Statut : ${item.statut}`,
-      ].filter(Boolean).join(' · ');
-    } else {
-      meta.textContent = `${item.sourceLabel} · Candidature avant cette date`;
-    }
+    meta.textContent = [
+      CLUB_INITIATIVE_DOMAINE_LABELS[item.domaine] || item.domaine,
+      item.sourceLabel,
+      item.porteur ? `Porteur : ${item.porteur}` : null,
+      `Statut : ${item.statut}`,
+    ].filter(Boolean).join(' · ');
     li.appendChild(meta);
 
-    const text = item.commentaire || item.description;
-    if (text) {
+    if (item.description) {
       const comment = document.createElement('div');
       comment.className = 'communication-body';
-      comment.textContent = text;
+      comment.textContent = item.description;
       li.appendChild(comment);
     }
 
@@ -233,22 +137,17 @@ function renderCalendrierDayDetail(isoDate) {
   detailEl.style.display = '';
 }
 
-// Nature d'un item au sens du filtre de legende : les 4 natures d'evenement, une par domaine de
-// projet ("initiative-sport", etc), et 'selection' pour les dates limites de candidature (qui
-// n'ont pas de "kind"/domaine propre).
 function calendrierItemFilterKey(item) {
-  if (item.type === 'event') return item.kind;
-  if (item.type === 'initiative') return `initiative-${item.domaine}`;
-  return 'selection';
+  return `initiative-${item.domaine}`;
 }
 
 function isCalendrierItemVisible(item) {
   return calendrierVisibleKinds.has(calendrierItemFilterKey(item));
 }
 
-// Legende cliquable (voir index.html, boutons .calendrier-legend-item) : cache/affiche les
-// evenements et selections par type, sans re-interroger la base -- calendrierItemsByDate reste
-// complet, seul le rendu (grille + detail au clic) applique le filtre.
+// Legende cliquable (voir index.html, boutons .calendrier-legend-item) : cache/affiche les projets
+// par commission, sans re-interroger la base -- calendrierItemsByDate reste complet, seul le rendu
+// (grille + detail au clic) applique le filtre.
 function toggleCalendrierKind(kind) {
   if (calendrierVisibleKinds.has(kind)) {
     calendrierVisibleKinds.delete(kind);
@@ -314,22 +213,21 @@ function renderCalendrierGrid() {
       const isoDate = toLocalIsoDate(date);
       const outside = date.getMonth() !== calendrierMonth;
       const items = (calendrierItemsByDate.get(isoDate) || []).filter(isCalendrierItemVisible);
-      const dotKinds = new Set(items.filter((it) => it.type !== 'selection').map(calendrierItemFilterKey));
-      const hasSelection = items.some((it) => it.type === 'selection');
+      const dotKinds = new Set(items.map(calendrierItemFilterKey));
       const clickable = items.length > 0;
 
       const cell = document.createElement('div');
       cell.className = 'calendrier-day'
         + (outside ? ' outside' : '')
         + (isToday(date) ? ' today' : '')
-        + (clickable ? ' has-event' : '')
-        + (hasSelection ? ' has-selection' : '');
+        + (clickable ? ' has-event' : '');
       cell.textContent = date.getDate();
 
       if (dotKinds.size) {
         const dotsWrap = document.createElement('div');
         dotsWrap.className = 'calendrier-day-dots';
-        for (const kind of CALENDRIER_DOT_ORDER) {
+        for (const domaine of CALENDRIER_INITIATIVE_DOMAINES) {
+          const kind = `initiative-${domaine}`;
           if (!dotKinds.has(kind)) continue;
           const dot = document.createElement('span');
           dot.className = `calendrier-dot calendrier-dot-${kind}`;

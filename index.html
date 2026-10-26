@@ -420,12 +420,6 @@
   .calendrier-legend-item.inactive {
     opacity: 0.4;
   }
-  .calendrier-legend-swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 3px;
-    background: #55606b;
-  }
   .calendrier-grid {
     display: grid;
     grid-template-columns: auto repeat(7, 1fr);
@@ -473,10 +467,6 @@
     height: 5px;
     border-radius: 50%;
   }
-  .calendrier-dot-equipe { background: #f87171; }
-  .calendrier-dot-responsable { background: #7f1d1d; }
-  .calendrier-dot-club { background: #3b82f6; }
-  .calendrier-dot-bureau { background: #eab308; }
   .calendrier-dot-initiative-sport { background: #22c55e; }
   .calendrier-dot-initiative-kid { background: #a855f7; }
   .calendrier-dot-initiative-vie_associative { background: #fb923c; }
@@ -489,11 +479,6 @@
     border-color: #3b82f6;
     background: #1e2a3d;
     font-weight: 700;
-  }
-  /* Date limite de candidature a une selection (voir js/calendar.js) : place apres .today pour
-     rester visible meme si le jour est aussi aujourd'hui. */
-  .calendrier-day.has-selection {
-    background: #55606b;
   }
   .calendrier-day.has-event { cursor: pointer; }
   #calendrier-day-detail {
@@ -1076,14 +1061,9 @@
         <button type="button" id="calendrier-next" class="link">›</button>
       </div>
       <div class="calendrier-legend">
-        <button type="button" class="calendrier-legend-item" data-kind="equipe"><span class="calendrier-dot calendrier-dot-equipe"></span>Équipe</button>
-        <button type="button" class="calendrier-legend-item" data-kind="responsable"><span class="calendrier-dot calendrier-dot-responsable"></span>Responsable</button>
-        <button type="button" class="calendrier-legend-item" data-kind="club"><span class="calendrier-dot calendrier-dot-club"></span>Club</button>
-        <button type="button" class="calendrier-legend-item" data-kind="bureau"><span class="calendrier-dot calendrier-dot-bureau"></span>Bureau</button>
         <button type="button" class="calendrier-legend-item" data-kind="initiative-sport"><span class="calendrier-dot calendrier-dot-initiative-sport"></span>Sport</button>
         <button type="button" class="calendrier-legend-item" data-kind="initiative-kid"><span class="calendrier-dot calendrier-dot-initiative-kid"></span>Kid</button>
         <button type="button" class="calendrier-legend-item" data-kind="initiative-vie_associative"><span class="calendrier-dot calendrier-dot-initiative-vie_associative"></span>Vie Associative</button>
-        <button type="button" class="calendrier-legend-item" data-kind="selection"><span class="calendrier-legend-swatch"></span>Sélection</button>
       </div>
       <div id="calendrier-grid" class="calendrier-grid"></div>
       <div id="calendrier-day-detail" class="panel" style="display: none;"></div>
@@ -1128,6 +1108,11 @@
       <div id="bureau-subtab-reunion-bureau" class="dashboard-subtab-panel" style="display: none;">
         <div id="bureau-reunion-content" class="team-detail-content"></div>
       </div>
+    </div>
+
+    <div id="tab-content-ulticlub" class="tab-content-team-detail" style="display: none;">
+      <h2>Ulticlub</h2>
+      <div id="ulticlub-content" class="team-detail-content"></div>
     </div>
 
     <div id="tab-content-administratif" class="tab-content-team-detail" style="display: none;">
@@ -1320,6 +1305,7 @@
   <script src="js/vie-club.js"></script>
   <script src="js/administratif.js"></script>
   <script src="js/bureau.js"></script>
+  <script src="js/ulticlub.js"></script>
   <script src="js/club-initiatives.js"></script>
   <script src="js/communications.js"></script>
   <script src="js/member-profile.js"></script>

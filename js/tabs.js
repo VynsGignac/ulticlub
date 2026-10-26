@@ -4,7 +4,10 @@
 // Vie Associative / Administratif / Disciplinaire. "Communication" et "Disciplinaire" restent de
 // simples placeholders ("contenu a venir") en attendant d'etre definis. "Administratif" (voir
 // js/administratif.js) est reserve au role "membre du bureau" car il donne acces a des donnees
-// personnelles de licencies (date de naissance, telephone, mail). "Bureau" (voir js/bureau.js)
+// personnelles de licencies (date de naissance, telephone, mail). "Ulticlub" (voir js/ulticlub.js,
+// ajoute le 2026-10-26) est lui aussi reserve au bureau : administration des comptes du club --
+// valider les admissions en attente, visualiser tous les comptes membres, en retirer un si besoin.
+// "Bureau" (voir js/bureau.js)
 // liste qui est membre du bureau et qui tient les 3 roles legaux (president/secretaire/tresorier),
 // ouvert a tous en lecture -- seul le president peut transferer un role legal. "Sport", "Kid" et
 // "Vie Associative" (voir js/club-initiatives.js) partagent le meme mecanisme generique de liste de
@@ -29,6 +32,7 @@
 const TABS = [
   { id: 'calendrier', label: 'Calendrier' },
   { id: 'bureau', label: 'Bureau' },
+  { id: 'ulticlub', label: 'Ulticlub', requires: 'membreBureau' },
   { id: 'sport', label: 'Sport' },
   { id: 'kid', label: 'Kid' },
   { id: 'communication', label: 'Communication' },
@@ -40,6 +44,7 @@ const TABS = [
 const CUSTOM_TAB_CONTAINERS = {
   calendrier: { containerId: 'tab-content-calendrier', render: renderCalendrierTab },
   bureau: { containerId: 'tab-content-bureau', render: renderBureauTab },
+  ulticlub: { containerId: 'tab-content-ulticlub', render: renderUlticlubTab },
   administratif: { containerId: 'tab-content-administratif', render: renderAdministratifTab },
   sport: { containerId: 'tab-content-sport', render: renderSportTab },
   kid: { containerId: 'tab-content-kid', render: renderKidTab },
