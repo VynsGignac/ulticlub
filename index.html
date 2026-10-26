@@ -2,8 +2,9 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UltiClub</title>
+<meta name="description" content="UltiClub — application de gestion de club : calendrier, membres, communication.">
 
 <!-- PWA : installable ("Ajouter à l'écran d'accueil"), icône, lancement plein écran, hors-ligne
      après premier chargement (voir sw.js). -->
@@ -17,6 +18,23 @@
 <meta name="apple-mobile-web-app-title" content="UltiClub">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
+  /* Largeur des colonnes de contenu (formulaires/panneaux, et les blocs type calendrier/sous-
+     onglets) : capee a une largeur "telephone" par defaut -- c'est ce qui donnait, sur un vrai
+     ecran de bureau, l'impression d'une appli mobile egaree au milieu d'une page vide. A partir de
+     640px de large (donc jamais sur un telephone ou dans l'APK, qui restent identiques), ces
+     colonnes s'elargissent pour occuper l'espace comme une vraie page web. Voir leurs usages
+     (var(--content-max-width) / var(--form-max-width)) plus bas dans ce fichier. */
+  :root {
+    --content-max-width: 360px;
+    --form-max-width: 320px;
+  }
+  @media (min-width: 640px) {
+    :root {
+      --content-max-width: 640px;
+      --form-max-width: 480px;
+    }
+  }
+
   html, body {
     margin: 0;
     padding: 0;
@@ -182,7 +200,7 @@
     display: flex;
     gap: 8px;
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
     border-bottom: 1px solid #1f2731;
   }
   .subtab-button {
@@ -221,7 +239,7 @@
   }
   .subtab-panel {
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
   }
 
   .tab-content-team-detail {
@@ -258,7 +276,7 @@
   }
   .team-detail-content {
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
   }
 
   .filter-row {
@@ -358,7 +376,7 @@
     justify-content: center;
     gap: 24px;
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
   }
   .calendrier-header span {
     font-weight: 600;
@@ -376,7 +394,7 @@
     flex-wrap: wrap;
     gap: 6px 14px;
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
     font-size: 0.75em;
     color: #8a97a4;
   }
@@ -406,7 +424,7 @@
     grid-template-columns: auto repeat(7, 1fr);
     gap: 4px;
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
   }
   .calendrier-weekday {
     text-align: center;
@@ -470,7 +488,7 @@
   .calendrier-day.has-event { cursor: pointer; }
   #calendrier-day-detail {
     width: 100%;
-    max-width: 360px;
+    max-width: var(--content-max-width);
   }
   .event-detail-item { cursor: default; }
 
@@ -580,7 +598,7 @@
 
   form, .panel {
     width: 100%;
-    max-width: 320px;
+    max-width: var(--form-max-width);
     display: flex;
     flex-direction: column;
     gap: 12px;
