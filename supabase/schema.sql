@@ -153,39 +153,71 @@ alter table public.club_members drop column if exists role_encadrant;
 alter table public.club_members add column if not exists licence_a_jour boolean not null default false;
 alter table public.club_members add column if not exists dette numeric(10, 2) not null default 0;
 
--- Role legal (onglet Bureau > Membre du bureau, voir js/bureau.js) : au plus un president / un
--- secretaire / un tresorier par club -- un membre du bureau sans role_legal est un simple "membre
--- du bureau". Transferer un role legal (le retirer a son titulaire actuel pour le donner a un
--- autre membre du bureau, en une seule operation) est reserve au president -- seulement cote
--- interface pour l'instant (comme bureau_uniquement/responsable_uniquement ailleurs dans ce
--- fichier) : la policy RLS ci-dessous reste large (tout le bureau), a durcir plus tard si besoin.
-alter table public.club_members add column if not exists role_legal text;
-alter table public.club_members drop constraint if exists club_members_role_legal_check;
-alter table public.club_members add constraint club_members_role_legal_check
-  check (role_legal is null or role_legal in ('president', 'secretaire', 'tresorier'));
-alter table public.club_members drop constraint if exists club_members_role_legal_requires_bureau;
-alter table public.club_members add constraint club_members_role_legal_requires_bureau
-  check (role_legal is null or role_membre_bureau = true);
+-- Roles legaux (onglet Bureau > Membre du bureau, voir js/bureau.js) : president / secretaire /
+-- tresorier. CUMULATIFS (refonte 2026-10-26) -- un meme membre peut cumuler les 3 -- plutot qu'une
+-- seule colonne "role_legal" (abandonnee) qui ne pouvait en retenir qu'un seul a la fois : nommer
+-- quelqu'un titulaire d'un role EFFACAIT silencieusement tout autre role legal qu'il detenait deja
+-- (bug reel : B secretaire nomme tresorier perdait sa qualite de secretaire, qui devenait vacant --
+-- aucun membre ne le detenait plus). Avec 3 colonnes booleennes independantes, transferer un role
+-- ne touche jamais aux autres roles du nouveau titulaire : les 3 restent donc TOUJOURS attribues.
+-- Transferer un role legal (le retirer a son titulaire actuel pour le donner a un autre membre du
+-- bureau, en une seule operation, sans toucher a ses autres roles) est reserve au president --
+-- seulement cote interface pour l'instant (comme bureau_uniquement/responsable_uniquement ailleurs
+-- dans ce fichier) : la policy RLS ci-dessous reste large (tout le bureau), a durcir plus tard si
+-- besoin.
+alter table public.club_members add column if not exists role_president boolean not null default false;
+alter table public.club_members add column if not exists role_secretaire boolean not null default false;
+alter table public.club_members add column if not exists role_tresorier boolean not null default false;
 
--- Un seul titulaire par role legal et par club (la paire club_id+role_legal est unique ; chaque
--- valeur de role_legal est donc unique independamment au sein d'un meme club -- un seul president,
--- un seul secretaire, un seul tresorier).
-create unique index if not exists club_members_role_legal_unique
-  on public.club_members (club_id, role_legal)
-  where role_legal is not null;
+-- Migration depuis l'ancienne colonne unique "role_legal" (une seule valeur a la fois) si elle
+-- existe encore -- reporte son contenu sur les 3 nouvelles colonnes avant de la supprimer. Sans
+-- effet si deja fait (la colonne n'existe alors plus).
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'club_members' and column_name = 'role_legal'
+  ) then
+    update public.club_members set role_president = true where role_legal = 'president';
+    update public.club_members set role_secretaire = true where role_legal = 'secretaire';
+    update public.club_members set role_tresorier = true where role_legal = 'tresorier';
+    alter table public.club_members drop constraint if exists club_members_role_legal_check;
+    alter table public.club_members drop constraint if exists club_members_role_legal_requires_bureau;
+    drop index if exists club_members_role_legal_unique;
+    alter table public.club_members drop column role_legal;
+  end if;
+end $$;
+
+alter table public.club_members drop constraint if exists club_members_roles_legaux_requierent_bureau;
+alter table public.club_members add constraint club_members_roles_legaux_requierent_bureau
+  check (
+    (not role_president and not role_secretaire and not role_tresorier)
+    or role_membre_bureau = true
+  );
+
+-- Un seul titulaire par role et par club (chaque role a son propre index unique partiel : au plus
+-- une ligne a role_president = true par club, au plus une a role_secretaire = true, etc. -- mais
+-- rien n'empeche la MEME ligne d'avoir plusieurs de ces colonnes a true en meme temps).
+create unique index if not exists club_members_role_president_unique
+  on public.club_members (club_id) where role_president;
+create unique index if not exists club_members_role_secretaire_unique
+  on public.club_members (club_id) where role_secretaire;
+create unique index if not exists club_members_role_tresorier_unique
+  on public.club_members (club_id) where role_tresorier;
 
 -- Seed ponctuel (2026-10-26) : nomme le compte vincent.gibier23@gmail.com president de son club
--- actif, s'il n'a pas deja un role legal. Idempotent et sans effet sur tout autre compte.
+-- actif, s'il n'est pas deja titulaire d'un role legal. Idempotent et sans effet sur tout autre
+-- compte.
 do $$
 begin
   update public.club_members cm
-  set role_legal = 'president'
+  set role_president = true
   from public.profiles p, auth.users u
   where cm.user_id = p.id
     and p.id = u.id
     and u.email = 'vincent.gibier23@gmail.com'
     and cm.club_id = p.active_club_id
-    and cm.role_legal is null;
+    and not cm.role_president and not cm.role_secretaire and not cm.role_tresorier;
 end $$;
 
 -- Un membre qui rejoint un club via la recherche part non valide (voir js/club.js) ; le createur
