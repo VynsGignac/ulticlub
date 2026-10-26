@@ -28,6 +28,7 @@ const ASSETS = [
   './js/club-project-create.js',
   './js/vie-club.js',
   './js/administratif.js',
+  './js/bureau.js',
   './js/club-initiatives.js',
   './js/communications.js',
   './js/member-profile.js',

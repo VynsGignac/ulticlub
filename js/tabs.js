@@ -1,14 +1,16 @@
 // ============================================================
 // Onglets de l'espace club. Refonte de la barre principale (2026-10-26) : on ne garde que
 // "Calendrier" de l'ancienne barre, et on la remplace par Bureau / Sport / Kid / Communication /
-// Vie Associative / Administratif / Disciplinaire. "Bureau", "Communication" et "Disciplinaire"
-// restent de simples placeholders ("contenu a venir") en attendant d'etre definis. "Administratif"
-// (voir js/administratif.js) est reserve au role "membre du bureau" car il donne acces a des
-// donnees personnelles de licencies (date de naissance, telephone, mail). "Sport", "Kid" et "Vie
-// Associative" (voir js/club-initiatives.js) partagent le meme mecanisme generique de liste de
-// projets par domaine, ouvert a tous. Les 2 seuls roles existants desormais sont "membre du bureau"
-// (role_membre_bureau) et le role de base implicite "licencié" -- l'ancien role "encadrant" a ete
-// retire (voir supabase/schema.sql).
+// Vie Associative / Administratif / Disciplinaire. "Communication" et "Disciplinaire" restent de
+// simples placeholders ("contenu a venir") en attendant d'etre definis. "Administratif" (voir
+// js/administratif.js) est reserve au role "membre du bureau" car il donne acces a des donnees
+// personnelles de licencies (date de naissance, telephone, mail). "Bureau" (voir js/bureau.js)
+// liste qui est membre du bureau et qui tient les 3 roles legaux (president/secretaire/tresorier),
+// ouvert a tous en lecture -- seul le president peut transferer un role legal. "Sport", "Kid" et
+// "Vie Associative" (voir js/club-initiatives.js) partagent le meme mecanisme generique de liste de
+// projets par domaine, ouvert a tous. Les 2 seuls roles de compte existent desormais : "membre du
+// bureau" (role_membre_bureau) et le role de base implicite "licencié" -- l'ancien role "encadrant"
+// a ete retire (voir supabase/schema.sql).
 //
 // Les anciens onglets (Saison, Vie de club, Equipe, Gestion club) ont ete retires de TABS mais leur
 // code reste intact et intentionnellement inchange (team-detail.js, club-management.js,
@@ -37,6 +39,7 @@ const TABS = [
 
 const CUSTOM_TAB_CONTAINERS = {
   calendrier: { containerId: 'tab-content-calendrier', render: renderCalendrierTab },
+  bureau: { containerId: 'tab-content-bureau', render: renderBureauTab },
   administratif: { containerId: 'tab-content-administratif', render: renderAdministratifTab },
   sport: { containerId: 'tab-content-sport', render: renderSportTab },
   kid: { containerId: 'tab-content-kid', render: renderKidTab },

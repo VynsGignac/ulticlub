@@ -153,6 +153,41 @@ alter table public.club_members drop column if exists role_encadrant;
 alter table public.club_members add column if not exists licence_a_jour boolean not null default false;
 alter table public.club_members add column if not exists dette numeric(10, 2) not null default 0;
 
+-- Role legal (onglet Bureau > Membre du bureau, voir js/bureau.js) : au plus un president / un
+-- secretaire / un tresorier par club -- un membre du bureau sans role_legal est un simple "membre
+-- du bureau". Transferer un role legal (le retirer a son titulaire actuel pour le donner a un
+-- autre membre du bureau, en une seule operation) est reserve au president -- seulement cote
+-- interface pour l'instant (comme bureau_uniquement/responsable_uniquement ailleurs dans ce
+-- fichier) : la policy RLS ci-dessous reste large (tout le bureau), a durcir plus tard si besoin.
+alter table public.club_members add column if not exists role_legal text;
+alter table public.club_members drop constraint if exists club_members_role_legal_check;
+alter table public.club_members add constraint club_members_role_legal_check
+  check (role_legal is null or role_legal in ('president', 'secretaire', 'tresorier'));
+alter table public.club_members drop constraint if exists club_members_role_legal_requires_bureau;
+alter table public.club_members add constraint club_members_role_legal_requires_bureau
+  check (role_legal is null or role_membre_bureau = true);
+
+-- Un seul titulaire par role legal et par club (la paire club_id+role_legal est unique ; chaque
+-- valeur de role_legal est donc unique independamment au sein d'un meme club -- un seul president,
+-- un seul secretaire, un seul tresorier).
+create unique index if not exists club_members_role_legal_unique
+  on public.club_members (club_id, role_legal)
+  where role_legal is not null;
+
+-- Seed ponctuel (2026-10-26) : nomme le compte vincent.gibier23@gmail.com president de son club
+-- actif, s'il n'a pas deja un role legal. Idempotent et sans effet sur tout autre compte.
+do $$
+begin
+  update public.club_members cm
+  set role_legal = 'president'
+  from public.profiles p, auth.users u
+  where cm.user_id = p.id
+    and p.id = u.id
+    and u.email = 'vincent.gibier23@gmail.com'
+    and cm.club_id = p.active_club_id
+    and cm.role_legal is null;
+end $$;
+
 -- Un membre qui rejoint un club via la recherche part non valide (voir js/club.js) ; le createur
 -- d'un club est valide d'office. Le bureau confirme les nouveaux arrivants via "Valider membre"
 -- dans l'onglet Gestion club (voir js/club-management.js). Defaut a true pour ne pas invalider
