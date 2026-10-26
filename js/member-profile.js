@@ -1,12 +1,14 @@
 // ============================================================
 // Fiche profil (lecture seule) d'un membre, ouverte en cliquant sur son nom depuis n'importe quelle
-// liste de membres de l'app (equipe, club, evenements, dette...). Les champs email/telephone/
-// adresse/date de naissance ne sont affiches que si leur case "visible par les membres hors du
-// bureau" est cochee -- sauf pour un membre du bureau du club actif, qui voit toujours tout.
-// S'affiche dans la fenetre modale partagee (voir js/modal.js), pas dans un onglet dedie. Le bouton
-// "Retour" revient a l'ecran precedent : s'il s'agissait d'une liste affichee dans la meme fenetre
-// (ex. Gestion membre), passer cette liste en second argument de openMemberProfile() pour y revenir
-// directement ; sinon la fenetre se ferme simplement.
+// liste de membres de l'app (equipe, club, evenements, dette...). Le compte ne comprend plus que
+// prenom/nom/pseudo/email (refonte 2026-10-26 -- les informations personnelles plus detaillees
+// vivent desormais dans la liste des membres de l'onglet Administratif, voir club_licencies et
+// js/administratif.js), donc plus de case "visible par les membres hors du bureau" a gerer ici :
+// tout ce qui s'affiche est visible par tout membre du club. S'affiche dans la fenetre modale
+// partagee (voir js/modal.js), pas dans un onglet dedie. Le bouton "Retour" revient a l'ecran
+// precedent : s'il s'agissait d'une liste affichee dans la meme fenetre (ex. Gestion membre),
+// passer cette liste en second argument de openMemberProfile() pour y revenir directement ; sinon
+// la fenetre se ferme simplement.
 // ============================================================
 
 let memberProfileReturnFn = null;
@@ -99,31 +101,19 @@ async function fetchMemberProfileData(targetUserId) {
   const [{ data: targetProfile }, { data: viewerProfile }] = await Promise.all([
     client
       .from('profiles')
-      .select('pseudo, nom, prenom, genre, email, telephone, adresse, date_naissance, visible_email, visible_telephone, visible_adresse, visible_date_naissance, is_admin')
+      .select('pseudo, nom, prenom, email, is_admin')
       .eq('id', targetUserId)
       .single(),
     client.from('profiles').select('active_club_id').eq('id', user.id).single(),
   ]);
 
   const clubId = viewerProfile ? viewerProfile.active_club_id : null;
-
-  let isBureau = false;
-  if (clubId) {
-    const { data: membership } = await client
-      .from('club_members')
-      .select('role_membre_bureau')
-      .eq('user_id', user.id)
-      .eq('club_id', clubId)
-      .single();
-    isBureau = !!(membership && membership.role_membre_bureau);
-  }
-
   const roleLabels = await fetchMemberRoleLabels(targetUserId, clubId);
 
-  return { targetProfile, isBureau, roleLabels };
+  return { targetProfile, roleLabels };
 }
 
-function buildMemberProfileFieldsEl(targetProfile, isBureau) {
+function buildMemberProfileFieldsEl(targetProfile) {
   const wrapper = document.createElement('div');
 
   if (!targetProfile) {
@@ -143,22 +133,12 @@ function buildMemberProfileFieldsEl(targetProfile, isBureau) {
   pseudoLine.textContent = `Pseudo : ${targetProfile.pseudo}`;
   wrapper.appendChild(pseudoLine);
 
-  const addField = (label, value, allowed) => {
-    if (!allowed || !value) return;
-    const p = document.createElement('p');
-    p.className = 'communication-meta';
-    p.textContent = `${label} : ${value}`;
-    wrapper.appendChild(p);
-  };
-
-  // Contrairement aux champs ci-dessous, le genre n'a pas de case "visible par les membres hors du
-  // bureau" : il est toujours affiche, pour tout le monde.
-  addField('Genre', targetProfile.genre, true);
-
-  addField('Adresse mail', targetProfile.email, isBureau || targetProfile.visible_email !== false);
-  addField('Téléphone', targetProfile.telephone, isBureau || targetProfile.visible_telephone !== false);
-  addField('Adresse', targetProfile.adresse, isBureau || targetProfile.visible_adresse !== false);
-  addField('Date de naissance', targetProfile.date_naissance, isBureau || targetProfile.visible_date_naissance !== false);
+  if (targetProfile.email) {
+    const emailLine = document.createElement('p');
+    emailLine.className = 'communication-meta';
+    emailLine.textContent = `Adresse mail : ${targetProfile.email}`;
+    wrapper.appendChild(emailLine);
+  }
 
   return wrapper;
 }
@@ -166,11 +146,11 @@ function buildMemberProfileFieldsEl(targetProfile, isBureau) {
 async function renderMemberProfile(targetUserId) {
   const contentEl = showModal('Profil');
 
-  const { targetProfile, isBureau, roleLabels } = await fetchMemberProfileData(targetUserId);
+  const { targetProfile, roleLabels } = await fetchMemberProfileData(targetUserId);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel';
-  wrapper.appendChild(buildMemberProfileFieldsEl(targetProfile, isBureau));
+  wrapper.appendChild(buildMemberProfileFieldsEl(targetProfile));
   appendRoleListEl(wrapper, roleLabels);
 
   const backButton = document.createElement('button');

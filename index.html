@@ -1012,15 +1012,6 @@
         <input id="signup-pseudo" type="text" autocomplete="username" required>
       </label>
       <label>
-        Genre
-        <select id="signup-genre" required>
-          <option value="" disabled selected>Choisir...</option>
-          <option value="Féminin">Féminin</option>
-          <option value="Masculin">Masculin</option>
-          <option value="Ne se prononce pas">Ne se prononce pas</option>
-        </select>
-      </label>
-      <label>
         Mot de passe
         <div class="password-field">
           <input id="signup-password" type="password" autocomplete="new-password" minlength="6" required>
@@ -1243,44 +1234,8 @@
           <input id="profil-nom" type="text" required>
         </label>
         <label>
-          Genre
-          <select id="profil-genre" required>
-            <option value="Féminin">Féminin</option>
-            <option value="Masculin">Masculin</option>
-            <option value="Ne se prononce pas">Ne se prononce pas</option>
-          </select>
-        </label>
-        <label>
           Adresse mail
           <input id="profil-email" type="email" disabled>
-        </label>
-        <label class="checkbox-label">
-          <input id="profil-email-visible" type="checkbox" checked>
-          Visible par les membres hors du bureau
-        </label>
-        <label>
-          Numéro de téléphone
-          <input id="profil-telephone" type="tel">
-        </label>
-        <label class="checkbox-label">
-          <input id="profil-telephone-visible" type="checkbox" checked>
-          Visible par les membres hors du bureau
-        </label>
-        <label>
-          Adresse
-          <input id="profil-adresse" type="text">
-        </label>
-        <label class="checkbox-label">
-          <input id="profil-adresse-visible" type="checkbox" checked>
-          Visible par les membres hors du bureau
-        </label>
-        <label>
-          Date de naissance
-          <input id="profil-date-naissance" type="date">
-        </label>
-        <label class="checkbox-label">
-          <input id="profil-date-naissance-visible" type="checkbox" checked>
-          Visible par les membres hors du bureau
         </label>
         <p id="profil-info" class="message"></p>
         <p id="profil-error" class="message error"></p>
@@ -1293,6 +1248,23 @@
         <button type="button" id="profil-leave-club" class="link"></button>
         <button type="button" id="profil-switch-club" class="link">Basculer vers un autre club</button>
         <ul id="profil-switch-list" class="club-results" style="display: none;"></ul>
+      </div>
+
+      <div class="panel" id="profil-licencie-panel" style="display: none;">
+        <h2>Mon compte dans la liste des membres</h2>
+        <div id="profil-licencie-linked" style="display: none;">
+          <p class="communication-meta">Lié à : <strong id="profil-licencie-linked-name"></strong></p>
+          <button type="button" id="profil-licencie-unlink" class="link">Délier mon compte</button>
+        </div>
+        <div id="profil-licencie-search">
+          <label>
+            Chercher mon nom dans la liste des membres (ça c'est moi)
+            <input id="profil-licencie-query" type="text" placeholder="Nom ou prénom...">
+          </label>
+          <ul id="profil-licencie-results" class="club-results"></ul>
+        </div>
+        <p id="profil-licencie-info" class="message"></p>
+        <p id="profil-licencie-error" class="message error"></p>
       </div>
       </div>
 

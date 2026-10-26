@@ -1,8 +1,11 @@
 // ============================================================
 // Onglet Administratif (reserve au role "membre du bureau") : 3 sous-onglets.
 // - "Liste des membres" : roster officiel du club (table club_licencies), saisi et tenu a jour a la
-//   main par le bureau. VOLONTAIREMENT SANS LIEN avec les comptes de l'app (profiles/club_members)
-//   -- un licencie n'a pas forcement de compte sur l'app, et inversement (voir supabase/schema.sql).
+//   main par le bureau. Un licencie n'a pas forcement de compte sur l'app, et inversement -- mais un
+//   compte peut desormais se LIER a un licencie depuis son Profil ("ça c'est moi", voir
+//   club_members.licencie_id et js/profile.js) : chaque entree affiche ici si elle est liee a un
+//   compte, et si ce compte est lui-meme membre du bureau (club_licencies_link_status(), voir
+//   supabase/schema.sql).
 // - "Dette" et "Finance Club" : a venir.
 // ============================================================
 
@@ -47,11 +50,15 @@ async function renderListeMembresSubTab() {
     return;
   }
 
-  const { data: licencies } = await client
-    .from('club_licencies')
-    .select('id, nom, prenom, date_naissance, categorie, equipe, licence, telephone, mail')
-    .eq('club_id', administratifClubId)
-    .order('nom', { ascending: true });
+  const [{ data: licencies }, { data: linkStatuses }] = await Promise.all([
+    client
+      .from('club_licencies')
+      .select('id, nom, prenom, date_naissance, categorie, equipe, licence, telephone, mail')
+      .eq('club_id', administratifClubId)
+      .order('nom', { ascending: true }),
+    client.rpc('club_licencies_link_status', { target_club_id: administratifClubId }),
+  ]);
+  const linkStatusByLicencieId = new Map((linkStatuses || []).map((s) => [s.licencie_id, s]));
 
   const wrapper = document.createElement('div');
   // panel-wide : contrairement a un formulaire, cette liste doit utiliser toute la largeur
@@ -78,7 +85,11 @@ async function renderListeMembresSubTab() {
       nameEl.textContent = [licencie.prenom, licencie.nom].filter(Boolean).join(' ') || licencie.nom;
       li.appendChild(nameEl);
 
-      const metaText = [licencie.equipe, licencie.categorie].filter(Boolean).join(' · ');
+      const status = linkStatusByLicencieId.get(licencie.id);
+      const metaParts = [licencie.equipe, licencie.categorie];
+      if (status && status.compte_bureau) metaParts.push('Compte bureau lié');
+      else if (status && status.compte_lie) metaParts.push('Compte lié');
+      const metaText = metaParts.filter(Boolean).join(' · ');
       if (metaText) {
         const metaEl = document.createElement('span');
         metaEl.className = 'split-view-item-meta';

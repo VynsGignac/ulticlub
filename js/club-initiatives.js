@@ -30,6 +30,10 @@ const CLUB_INITIATIVE_DOMAINE_LABELS = { sport: 'Sport', kid: 'Kid', vie_associa
 let currentInitiativeDomaine = null;
 let currentInitiativeClubId = null;
 let currentInitiativeIsBureau = false;
+// Statut de lien compte/licencie (voir club_licencies_link_status() dans supabase/schema.sql),
+// recharge a chaque rendu complet de l'onglet -- utilise pour le badge "Compte lié"/"Compte bureau
+// lié" dans la colonne des membres de la commission.
+let currentInitiativeLinkStatusByLicencieId = new Map();
 
 function renderSportTab() { renderClubInitiativesTab('sport', 'sport-content'); }
 function renderKidTab() { renderClubInitiativesTab('kid', 'kid-content'); }
@@ -49,7 +53,7 @@ async function renderClubInitiativesTab(domaine, contentElId) {
     return;
   }
 
-  const [{ data: initiatives }, { data: members }, { data: membership }] = await Promise.all([
+  const [{ data: initiatives }, { data: members }, { data: membership }, { data: linkStatuses }] = await Promise.all([
     client
       .from('club_initiatives')
       .select('id, nom, porteur, echeance, description, statut, periodicite, demande_bureau, decision_bureau')
@@ -63,8 +67,10 @@ async function renderClubInitiativesTab(domaine, contentElId) {
       .eq('domaine', domaine)
       .order('nom', { ascending: true }),
     client.from('club_members').select('role_membre_bureau').eq('user_id', user.id).eq('club_id', currentInitiativeClubId).maybeSingle(),
+    client.rpc('club_licencies_link_status', { target_club_id: currentInitiativeClubId }),
   ]);
   currentInitiativeIsBureau = !!(membership && membership.role_membre_bureau);
+  currentInitiativeLinkStatusByLicencieId = new Map((linkStatuses || []).map((s) => [s.licencie_id, s]));
 
   const layout = document.createElement('div');
   layout.className = 'commission-layout';
@@ -127,6 +133,14 @@ function renderCommissionMembersListInto(listEl, members, contentElId) {
       tagEl.className = 'split-view-item-meta';
       tagEl.textContent = 'Responsable de commission';
       li.appendChild(tagEl);
+    }
+
+    const linkStatus = currentInitiativeLinkStatusByLicencieId.get(member.licencie_id);
+    if (linkStatus && (linkStatus.compte_lie || linkStatus.compte_bureau)) {
+      const linkTagEl = document.createElement('span');
+      linkTagEl.className = 'split-view-item-meta';
+      linkTagEl.textContent = linkStatus.compte_bureau ? 'Compte bureau lié' : 'Compte lié';
+      li.appendChild(linkTagEl);
     }
 
     if (currentInitiativeIsBureau) {

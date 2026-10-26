@@ -46,31 +46,14 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Informations personnelles editables depuis l'onglet Profil (toutes facultatives : remplies
--- apres coup, pas a l'inscription).
+-- Prenom : facultatif, editable depuis l'onglet Profil.
 alter table public.profiles add column if not exists prenom text;
-alter table public.profiles add column if not exists telephone text;
-alter table public.profiles add column if not exists adresse text;
-alter table public.profiles add column if not exists date_naissance date;
 
 -- Dupliquee depuis auth.users (accessible uniquement pour son propre compte via le SDK) afin que
--- les AUTRES membres du club puissent la voir dans la fiche profil, sous reserve de
--- visible_email -- voir js/member-profile.js. Renseignee a l'inscription et resynchronisee a
--- chaque connexion (voir js/auth.js) pour couvrir les comptes crees avant cette colonne.
+-- les AUTRES membres du club puissent la voir dans la fiche profil -- voir js/member-profile.js.
+-- Renseignee a l'inscription et resynchronisee a chaque connexion (voir js/auth.js) pour couvrir
+-- les comptes crees avant cette colonne.
 alter table public.profiles add column if not exists email text;
-
--- Sur les installations anterieures a la suppression du telephone obligatoire a l'inscription,
--- cette colonne a ete creee "not null" : on l'assouplit pour que les nouvelles inscriptions
--- (qui ne renseignent plus le telephone) ne cassent plus l'insertion du profil.
-alter table public.profiles alter column telephone drop not null;
-
--- Case a cocher "visible par les membres hors du bureau" pour ces 4 champs (email, telephone,
--- adresse, date de naissance) : cochee par defaut. Ne pilote encore aucune logique d'affichage
--- reelle, seulement la preference de l'utilisateur -- la visibilite en elle-meme viendra plus tard.
-alter table public.profiles add column if not exists visible_email boolean not null default true;
-alter table public.profiles add column if not exists visible_telephone boolean not null default true;
-alter table public.profiles add column if not exists visible_adresse boolean not null default true;
-alter table public.profiles add column if not exists visible_date_naissance boolean not null default true;
 
 -- Compte "administrateur" : bypass toutes les verifications bureau/responsable d'equipe, sur tous
 -- les clubs, tout le temps (voir is_app_admin() plus bas, utilise par is_club_bureau() et
@@ -80,17 +63,24 @@ alter table public.profiles add column if not exists visible_date_naissance bool
 -- erreur, plus personne pour le reactiver depuis l'app).
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 
--- Genre : obligatoire a la creation du compte (voir le formulaire d'inscription), toujours visible
--- par tout le monde -- pas de case "visible par les membres hors du bureau" comme pour
--- email/telephone/adresse/date de naissance. "Ne se prononce pas" sert aussi de valeur de repli
--- pour les comptes crees avant l'ajout de cette colonne.
-alter table public.profiles add column if not exists genre text;
-update public.profiles set genre = 'Ne se prononce pas' where genre is null;
-alter table public.profiles alter column genre set default 'Ne se prononce pas';
-alter table public.profiles alter column genre set not null;
+-- Simplification du compte (2026-10-26) : un compte ne comprend plus que prenom/nom/pseudo/email
+-- (ci-dessus). Le telephone, l'adresse, la date de naissance, le genre, et les cases "visible par
+-- les membres hors du bureau" qui accompagnaient ces champs sont retires -- ces informations
+-- vivent desormais dans la liste des membres de l'onglet Administratif (club_licencies, plus bas),
+-- a laquelle un compte peut maintenant se LIER ("ça c'est moi") au lieu de les dupliquer sur le
+-- compte lui-meme -- voir club_members.licencie_id et les fonctions club_licencies_names()/
+-- set_own_licencie_link()/club_licencies_link_status() plus bas, et js/profile.js. Donnees
+-- existantes perdues : pas de migration vers club_licencies, aucun lien fiable n'existait entre les
+-- deux avant ce changement.
+alter table public.profiles drop column if exists telephone;
+alter table public.profiles drop column if exists adresse;
+alter table public.profiles drop column if exists date_naissance;
 alter table public.profiles drop constraint if exists profiles_genre_check;
-alter table public.profiles add constraint profiles_genre_check
-  check (genre in ('Féminin', 'Masculin', 'Ne se prononce pas'));
+alter table public.profiles drop column if exists genre;
+alter table public.profiles drop column if exists visible_email;
+alter table public.profiles drop column if exists visible_telephone;
+alter table public.profiles drop column if exists visible_adresse;
+alter table public.profiles drop column if exists visible_date_naissance;
 
 create or replace function public.is_app_admin()
 returns boolean
@@ -1076,6 +1066,112 @@ create policy "Le bureau supprime un licencie de son club"
   on public.club_licencies for delete
   to authenticated
   using (public.is_club_bureau(club_id));
+
+-- --- Lien compte <-> licencié (auto-identification "ça c'est moi", voir js/profile.js) ----------
+-- Un compte peut se lier a un licencie de la liste des membres ci-dessus, pour que d'autres ecrans
+-- puissent s'appuyer sur cette liste plutot que sur les informations personnelles du compte
+-- (desormais limitees a prenom/nom/pseudo/email, voir plus haut). Lien FACULTATIF, actif
+-- IMMEDIATEMENT une fois pose par le titulaire du compte lui-meme (pas de validation bureau
+-- separee) : la "validation" se fait plutot en LECTURE, via club_licencies_link_status() plus bas,
+-- pour verifier ailleurs dans l'app si un licencie est bien lie a un compte -- et si ce compte est
+-- lui-meme membre du bureau.
+alter table public.club_members add column if not exists licencie_id uuid references public.club_licencies (id) on delete set null;
+
+-- Un licencie ne peut etre lie qu'a un seul compte par club (un compte n'a de toute facon qu'une
+-- seule valeur de licencie_id, une seule ligne par club -- voir unique (user_id, club_id) plus haut).
+create unique index if not exists club_members_licencie_id_unique
+  on public.club_members (club_id, licencie_id) where licencie_id is not null;
+
+-- Recherche par nom/prenom UNIQUEMENT (jamais telephone/mail/date de naissance, qui restent
+-- reservees au bureau -- voir la policy SELECT de club_licencies plus haut) : sert au picker
+-- "ça c'est moi" de js/profile.js, ouvert a TOUT membre du club (pas seulement le bureau).
+-- SECURITY DEFINER pour lire club_licencies au-dela de ce que sa policy RLS (bureau uniquement)
+-- autoriserait sinon -- mais ne renvoie jamais que l'identifiant et le nom.
+create or replace function public.club_licencies_names(target_club_id uuid)
+returns table(id uuid, nom text, prenom text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select cl.id, cl.nom, cl.prenom
+  from public.club_licencies cl
+  where cl.club_id = target_club_id
+    and exists (
+      select 1 from public.club_members cm
+      where cm.club_id = target_club_id and cm.user_id = auth.uid()
+    );
+$$;
+
+grant execute on function public.club_licencies_names(uuid) to authenticated;
+
+-- Pose/retire le lien "ça c'est moi" pour l'APPELANT lui-meme uniquement (jamais pour un autre
+-- compte) : SECURITY DEFINER pour ne modifier QUE club_members.licencie_id sans avoir a ouvrir une
+-- policy UPDATE plus large sur cette table a tous les membres (qui leur permettrait sinon de
+-- modifier n'importe quelle colonne de leur propre ligne, y compris
+-- role_membre_bureau/dette/valide...).
+create or replace function public.set_own_licencie_link(target_club_id uuid, target_licencie_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if target_licencie_id is not null then
+    if not exists (
+      select 1 from public.club_licencies
+      where id = target_licencie_id and club_id = target_club_id
+    ) then
+      raise exception 'Membre introuvable dans ce club.';
+    end if;
+
+    if exists (
+      select 1 from public.club_members
+      where club_id = target_club_id and licencie_id = target_licencie_id and user_id <> auth.uid()
+    ) then
+      raise exception 'Ce membre est déjà lié à un autre compte.';
+    end if;
+  end if;
+
+  update public.club_members
+  set licencie_id = target_licencie_id
+  where club_id = target_club_id and user_id = auth.uid();
+end;
+$$;
+
+grant execute on function public.set_own_licencie_link(uuid, uuid) to authenticated;
+
+-- Statut de lien par licencie (id, compte_lie, compte_bureau) pour tout le club -- sert aux badges
+-- "Compte lié"/"Compte bureau lié" affiches dans Administratif > Liste des membres et dans les
+-- listes de membres de commission (Sport/Kid/Vie Associative, voir js/club-initiatives.js), ouvert
+-- a tout membre du club (pas seulement le bureau, comme ces listes elles-memes) -- sans jamais
+-- exposer QUEL compte (user_id) est lie, ni aucune autre colonne de club_members.
+create or replace function public.club_licencies_link_status(target_club_id uuid)
+returns table(licencie_id uuid, compte_lie boolean, compte_bureau boolean)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    cl.id,
+    exists (
+      select 1 from public.club_members cm
+      where cm.club_id = target_club_id and cm.licencie_id = cl.id
+    ),
+    exists (
+      select 1 from public.club_members cm
+      where cm.club_id = target_club_id and cm.licencie_id = cl.id and cm.role_membre_bureau = true
+    )
+  from public.club_licencies cl
+  where cl.club_id = target_club_id
+    and exists (
+      select 1 from public.club_members cm2
+      where cm2.club_id = target_club_id and cm2.user_id = auth.uid()
+    );
+$$;
+
+grant execute on function public.club_licencies_link_status(uuid) to authenticated;
 
 -- --- Projets par domaine (onglets Sport / Kid / Vie Associative) ---------------------------------
 -- Les 3 onglets partagent exactement le meme mecanisme (voir js/club-initiatives.js), seule la

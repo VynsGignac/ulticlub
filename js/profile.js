@@ -1,10 +1,23 @@
 // ============================================================
-// Onglet Tableau de bord : sous-onglet Profil (edition des informations personnelles, et gestion
-// de l'appartenance aux clubs -- recherche/creation dans js/club.js, ici un utilisateur voit tous
-// ses clubs, peut quitter le club actif ou basculer vers un autre parmi ceux qu'il a deja
-// rejoints) et sous-onglet Administratif (licence/dette, lecture seule -- rempli par le bureau
-// ailleurs, pas encore implemente).
+// Onglet Tableau de bord : sous-onglet Profil (edition des informations personnelles -- reduites
+// a prenom/nom/pseudo/email, voir supabase/schema.sql --, gestion de l'appartenance aux clubs --
+// recherche/creation dans js/club.js, ici un utilisateur voit tous ses clubs, peut quitter le club
+// actif ou basculer vers un autre parmi ceux qu'il a deja rejoints --, et lien "ça c'est moi" vers
+// la liste des membres de l'onglet Administratif) et sous-onglet Administratif (licence/dette,
+// lecture seule -- rempli par le bureau ailleurs, pas encore implemente).
+//
+// Lien vers la liste des membres (club_licencies) : un compte peut se lier a un licencie de son
+// club actif pour s'auto-identifier ("ça c'est moi"), via club_members.licencie_id. Recherche par
+// nom/prenom ouverte a TOUT membre du club (via la fonction SECURITY DEFINER
+// club_licencies_names(), qui n'expose jamais telephone/mail/date de naissance -- ces champs
+// restent reserves au bureau). Lien actif immediatement une fois pose (pas de validation bureau
+// separee ici) -- la "validation" se fait plutot en lecture ailleurs (badges "Compte lié"/"Compte
+// bureau lié" dans Administratif et les listes de commission, voir js/administratif.js et
+// js/club-initiatives.js).
 // ============================================================
+
+let currentProfilClubId = null;
+let profilLicencieRoster = [];
 
 function renderProfilTab() {
   selectDashboardSubTab('profil');
@@ -29,10 +42,7 @@ async function renderProfilSubTab() {
 
   const { data: profile } = await client
     .from('profiles')
-    .select(`
-      pseudo, nom, prenom, genre, telephone, adresse, date_naissance, active_club_id,
-      visible_email, visible_telephone, visible_adresse, visible_date_naissance
-    `)
+    .select('pseudo, nom, prenom, active_club_id')
     .eq('id', user.id)
     .single();
 
@@ -43,28 +53,93 @@ async function renderProfilSubTab() {
 
   populateProfilForm(profile || {}, user.email);
   renderClubMemberships(profile || {}, memberships || []);
+
+  currentProfilClubId = profile ? profile.active_club_id : null;
+  await renderLicencieLinkSection(user.id);
 }
 
-// Les cases "visible par les membres hors du bureau" ne pilotent encore aucune logique
-// d'affichage reelle (demande explicite : juste les capturer pour l'instant, la visibilite en
-// elle-meme viendra plus tard) -- seule leur valeur est enregistree.
 function populateProfilForm(profile, email) {
   document.getElementById('profil-pseudo').value = profile.pseudo || '';
   document.getElementById('profil-prenom').value = profile.prenom || '';
   document.getElementById('profil-nom').value = profile.nom || '';
-  document.getElementById('profil-genre').value = profile.genre || 'Ne se prononce pas';
   document.getElementById('profil-email').value = email || '';
-  document.getElementById('profil-telephone').value = profile.telephone || '';
-  document.getElementById('profil-adresse').value = profile.adresse || '';
-  document.getElementById('profil-date-naissance').value = profile.date_naissance || '';
-
-  document.getElementById('profil-email-visible').checked = profile.visible_email !== false;
-  document.getElementById('profil-telephone-visible').checked = profile.visible_telephone !== false;
-  document.getElementById('profil-adresse-visible').checked = profile.visible_adresse !== false;
-  document.getElementById('profil-date-naissance-visible').checked = profile.visible_date_naissance !== false;
 
   setMessage(document.getElementById('profil-info'), '');
   setMessage(document.getElementById('profil-error'), '');
+}
+
+// --- Lien "ça c'est moi" vers la liste des membres (club_licencies) ---------------------------
+
+async function renderLicencieLinkSection(userId) {
+  const panelEl = document.getElementById('profil-licencie-panel');
+  setMessage(document.getElementById('profil-licencie-info'), '');
+  setMessage(document.getElementById('profil-licencie-error'), '');
+
+  if (!currentProfilClubId) {
+    panelEl.style.display = 'none';
+    return;
+  }
+  panelEl.style.display = '';
+
+  const [{ data: membership }, { data: roster }] = await Promise.all([
+    client.from('club_members').select('licencie_id').eq('user_id', userId).eq('club_id', currentProfilClubId).maybeSingle(),
+    client.rpc('club_licencies_names', { target_club_id: currentProfilClubId }),
+  ]);
+
+  profilLicencieRoster = roster || [];
+  const linkedId = membership ? membership.licencie_id : null;
+  const linked = linkedId ? profilLicencieRoster.find((l) => l.id === linkedId) : null;
+
+  document.getElementById('profil-licencie-linked').style.display = linked ? '' : 'none';
+  document.getElementById('profil-licencie-search').style.display = linked ? 'none' : '';
+
+  if (linked) {
+    document.getElementById('profil-licencie-linked-name').textContent = [linked.prenom, linked.nom].filter(Boolean).join(' ') || linked.nom;
+  } else {
+    document.getElementById('profil-licencie-query').value = '';
+    renderLicencieSearchResults('');
+  }
+}
+
+function renderLicencieSearchResults(query) {
+  const listEl = document.getElementById('profil-licencie-results');
+  const trimmed = query.trim().toLowerCase();
+  const matches = trimmed
+    ? profilLicencieRoster.filter((l) => `${l.prenom || ''} ${l.nom}`.toLowerCase().includes(trimmed))
+    : profilLicencieRoster;
+
+  listEl.innerHTML = '';
+  if (!matches.length) {
+    listEl.innerHTML = '<li class="empty">Aucun membre trouvé.</li>';
+    return;
+  }
+  for (const licencie of matches.slice(0, 20)) {
+    const li = document.createElement('li');
+    li.textContent = [licencie.prenom, licencie.nom].filter(Boolean).join(' ') || licencie.nom;
+    li.addEventListener('click', () => handleLinkLicencie(licencie.id));
+    listEl.appendChild(li);
+  }
+}
+
+async function handleLinkLicencie(licencieId) {
+  const errorEl = document.getElementById('profil-licencie-error');
+  setMessage(errorEl, '');
+
+  const { error } = await client.rpc('set_own_licencie_link', { target_club_id: currentProfilClubId, target_licencie_id: licencieId });
+  if (error) {
+    setMessage(errorEl, error.message || 'Erreur lors de la liaison.', true);
+    return;
+  }
+
+  const user = await requireUser();
+  await renderLicencieLinkSection(user.id);
+  setMessage(document.getElementById('profil-licencie-info'), 'Compte lié.');
+}
+
+async function handleUnlinkLicencie() {
+  const user = await requireUser();
+  await client.rpc('set_own_licencie_link', { target_club_id: currentProfilClubId, target_licencie_id: null });
+  await renderLicencieLinkSection(user.id);
 }
 
 function renderClubMemberships(profile, memberships) {
@@ -180,14 +255,6 @@ async function handleProfilSave(event) {
     pseudo: document.getElementById('profil-pseudo').value.trim(),
     nom: document.getElementById('profil-nom').value.trim(),
     prenom: document.getElementById('profil-prenom').value.trim() || null,
-    genre: document.getElementById('profil-genre').value,
-    telephone: document.getElementById('profil-telephone').value.trim() || null,
-    adresse: document.getElementById('profil-adresse').value.trim() || null,
-    date_naissance: document.getElementById('profil-date-naissance').value || null,
-    visible_email: document.getElementById('profil-email-visible').checked,
-    visible_telephone: document.getElementById('profil-telephone-visible').checked,
-    visible_adresse: document.getElementById('profil-adresse-visible').checked,
-    visible_date_naissance: document.getElementById('profil-date-naissance-visible').checked,
   };
 
   try {
@@ -217,4 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('#tab-content-profil .subtab-button').forEach((button) => {
     button.addEventListener('click', () => selectDashboardSubTab(button.dataset.subtab));
   });
+
+  document.getElementById('profil-licencie-query').addEventListener('input', (event) => renderLicencieSearchResults(event.target.value));
+  document.getElementById('profil-licencie-unlink').addEventListener('click', handleUnlinkLicencie);
 });
