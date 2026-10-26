@@ -13,10 +13,17 @@
 //   fenetre modale), ouvert a tout membre du club.
 // Les 3 onglets appellent les memes fonctions generiques ci-dessous avec leur propre "domaine" -- un
 // seul jeu de code pour les trois, puisqu'ils se construisent exactement de la meme facon.
+// Chaque projet porte aussi "Demande bureau" (champ libre, editable ici) et "Décision bureau"
+// (reponse du bureau, affichee ici en lecture seule -- editable uniquement depuis Bureau > Réunion
+// bureau, voir js/bureau.js). Chaque projet apparait egalement dans l'onglet Calendrier a la date de
+// son echeance (voir js/calendar.js), filtrable par commission comme les autres natures d'evenement.
 // ============================================================
 
 const CLUB_INITIATIVE_STATUTS = ['Non démarré', 'Amorcé', 'En cours', 'Terminé'];
 const CLUB_INITIATIVE_PERIODICITES = ['Ponctuel', 'Hebdomadaire', 'Mensuel', 'Trimestriel', 'Annuel'];
+// Libelles des domaines, reutilises par js/calendar.js (points par commission) et js/bureau.js
+// (sous-onglet Réunion bureau).
+const CLUB_INITIATIVE_DOMAINE_LABELS = { sport: 'Sport', kid: 'Kid', vie_associative: 'Vie Associative' };
 
 // Domaine/club/role actifs : mis a jour juste avant chaque rendu complet de l'onglet, lus par les
 // actions declenchees depuis les fenetres modales (edition de projet, gestion des membres).
@@ -45,7 +52,7 @@ async function renderClubInitiativesTab(domaine, contentElId) {
   const [{ data: initiatives }, { data: members }, { data: membership }] = await Promise.all([
     client
       .from('club_initiatives')
-      .select('id, nom, porteur, echeance, description, statut, periodicite')
+      .select('id, nom, porteur, echeance, description, statut, periodicite, demande_bureau, decision_bureau')
       .eq('club_id', currentInitiativeClubId)
       .eq('domaine', domaine)
       .order('echeance', { ascending: true }),
@@ -277,7 +284,7 @@ async function refreshCommissionProjectsColumn(contentElId) {
 
   const { data: initiatives } = await client
     .from('club_initiatives')
-    .select('id, nom, porteur, echeance, description, statut, periodicite')
+    .select('id, nom, porteur, echeance, description, statut, periodicite, demande_bureau, decision_bureau')
     .eq('club_id', currentInitiativeClubId)
     .eq('domaine', currentInitiativeDomaine)
     .order('echeance', { ascending: true });
@@ -369,6 +376,33 @@ function buildInitiativeForm(existing, contentElId) {
   buildSelect('statut', 'Statut', CLUB_INITIATIVE_STATUTS, existing ? existing.statut : null);
   buildSelect('periodicite', 'Périodicité', CLUB_INITIATIVE_PERIODICITES, existing ? existing.periodicite : null);
 
+  // "Demande bureau" : champ libre, editable ici par n'importe quel membre comme le reste du
+  // projet -- une demande a transmettre au bureau. "Décision bureau" est la reponse du bureau a
+  // cette demande : affichee ici en LECTURE SEULE (elle n'existe donc pas encore a la creation,
+  // existing est alors null) -- seul le sous-onglet Bureau > Réunion bureau (voir js/bureau.js)
+  // peut la modifier, cote interface uniquement (meme principe que bureau_uniquement ailleurs dans
+  // ce projet).
+  const demandeLabel = document.createElement('label');
+  demandeLabel.textContent = 'Demande bureau';
+  const demandeArea = document.createElement('textarea');
+  demandeArea.rows = 3;
+  demandeArea.value = existing ? (existing.demande_bureau || '') : '';
+  demandeLabel.appendChild(demandeArea);
+  form.appendChild(demandeLabel);
+  fields.demandeBureau = demandeArea;
+
+  if (existing) {
+    const decisionLabel = document.createElement('label');
+    decisionLabel.textContent = 'Décision bureau';
+    const decisionArea = document.createElement('textarea');
+    decisionArea.rows = 3;
+    decisionArea.readOnly = true;
+    decisionArea.placeholder = 'Aucune décision pour le moment.';
+    decisionArea.value = existing.decision_bureau || '';
+    decisionLabel.appendChild(decisionArea);
+    form.appendChild(decisionLabel);
+  }
+
   const infoEl = document.createElement('p');
   infoEl.className = 'message';
   const errorEl = document.createElement('p');
@@ -394,6 +428,7 @@ function readInitiativeFormPayload(fields) {
     description: fields.description.value.trim() || null,
     statut: fields.statut.value,
     periodicite: fields.periodicite.value,
+    demande_bureau: fields.demandeBureau.value.trim() || null,
   };
 }
 

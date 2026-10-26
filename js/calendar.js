@@ -1,17 +1,24 @@
 // ============================================================
-// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche jusqu'a 4 points colores
-// sur les jours ayant au moins un evenement (parmi les equipes dont l'utilisateur est membre, et
-// les clubs dont il est membre), un point par "nature" d'evenement presente ce jour-la (voir
-// EVENT_KIND_ORDER plus bas) -- y compris les occurrences des evenements cycliques (hebdomadaires).
-// Les dates limites de candidature des selections d'equipe (filtrees par portee comme dans l'onglet
-// Saison, voir selectionMatchesProfile dans js/saison.js) colorent toute la case en gris clair
-// plutot que d'ajouter un point. Cliquer sur un jour marque (point ou case grisee) affiche le detail
-// en dessous du calendrier.
+// Onglet Calendrier : vue mensuelle classique, en lecture seule. Affiche jusqu'a plusieurs points
+// colores sur les jours ayant au moins un evenement (parmi les equipes dont l'utilisateur est
+// membre, et les clubs dont il est membre), un point par "nature" d'evenement presente ce jour-la
+// (voir EVENT_KIND_ORDER plus bas) -- y compris les occurrences des evenements cycliques
+// (hebdomadaires). Les projets des onglets Sport/Kid/Vie Associative (table club_initiatives, voir
+// js/club-initiatives.js) apparaissent eux aussi, a la date de leur echeance -- un point par
+// commission (domaine), filtrable independamment comme les autres natures via la legende. Les dates
+// limites de candidature des selections d'equipe (filtrees par portee comme dans l'onglet Saison,
+// voir selectionMatchesProfile dans js/saison.js) colorent toute la case en gris clair plutot que
+// d'ajouter un point. Cliquer sur un jour marque (point ou case grisee) affiche le detail en
+// dessous du calendrier.
 // ============================================================
 
 // Ordre d'affichage fixe des points (de gauche a droite) quand plusieurs natures d'evenement
 // tombent le meme jour -- garde leur position stable d'un jour a l'autre.
 const EVENT_KIND_ORDER = ['equipe', 'responsable', 'club', 'bureau'];
+// Domaines des projets (voir club_initiatives.domaine) dans leur ordre d'affichage -- chacun a son
+// propre point de couleur et son propre interrupteur de legende, independant de EVENT_KIND_ORDER.
+const CALENDRIER_INITIATIVE_DOMAINES = ['sport', 'kid', 'vie_associative'];
+const CALENDRIER_DOT_ORDER = [...EVENT_KIND_ORDER, ...CALENDRIER_INITIATIVE_DOMAINES.map((d) => `initiative-${d}`)];
 
 const CALENDRIER_MOIS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -25,8 +32,12 @@ let calendrierMonth = calendrierToday.getMonth();
 let calendrierItemsByDate = new Map();
 let calendrierSelectedDate = null;
 // Natures actuellement affichees (legende cliquable, voir toggleCalendrierKind) : toutes visibles
-// par defaut. 'selection' est a part des 4 "kind" d'evenement (equipe/responsable/club/bureau).
-let calendrierVisibleKinds = new Set(['equipe', 'responsable', 'club', 'bureau', 'selection']);
+// par defaut. 'selection' est a part des 4 "kind" d'evenement (equipe/responsable/club/bureau) ;
+// les projets ont leur propre cle par domaine ("initiative-sport", etc).
+let calendrierVisibleKinds = new Set([
+  'equipe', 'responsable', 'club', 'bureau', 'selection',
+  ...CALENDRIER_INITIATIVE_DOMAINES.map((d) => `initiative-${d}`),
+]);
 
 // Numero de semaine ISO 8601 (lundi = debut de semaine, la semaine 1 est celle contenant le
 // premier jeudi de l'annee) -- methode standard : recaler sur le jeudi de la semaine puis compter
@@ -91,7 +102,7 @@ async function fetchCalendrierItemsByDate() {
   const clubIds = (clubMemberships || []).map((m) => m.club_id);
 
   const eventFields = 'id, nom, date_debut, date_fin, heure_debut, heure_fin, lieu, commentaire, cyclique, date_derniere_occurrence';
-  const [teamEventsRes, clubEventsRes, selectionsRes] = await Promise.all([
+  const [teamEventsRes, clubEventsRes, selectionsRes, initiativesRes] = await Promise.all([
     teamIds.length
       ? client.from('team_events').select(`${eventFields}, responsable_uniquement, teams (nom)`).in('team_id', teamIds)
       : Promise.resolve({ data: [] }),
@@ -100,6 +111,9 @@ async function fetchCalendrierItemsByDate() {
       : Promise.resolve({ data: [] }),
     teamIds.length
       ? client.from('team_selections').select('id, date_limite_candidature, commentaire, cible_masculin, cible_feminin, nee_avant_le, nee_apres_le, teams (nom)').in('team_id', teamIds)
+      : Promise.resolve({ data: [] }),
+    clubIds.length
+      ? client.from('club_initiatives').select('id, domaine, nom, porteur, echeance, description, statut, clubs (nom)').in('club_id', clubIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -128,6 +142,18 @@ async function fetchCalendrierItemsByDate() {
   }
   for (const evt of clubEventsRes.data || []) {
     addEvent(evt, evt.clubs ? `Club — ${evt.clubs.nom}` : 'Club', evt.bureau_uniquement ? 'bureau' : 'club');
+  }
+
+  for (const initiative of initiativesRes.data || []) {
+    addItem(initiative.echeance, {
+      type: 'initiative',
+      domaine: initiative.domaine,
+      nom: initiative.nom,
+      porteur: initiative.porteur,
+      description: initiative.description,
+      statut: initiative.statut,
+      sourceLabel: initiative.clubs ? initiative.clubs.nom : 'Club',
+    });
   }
 
   for (const sel of selectionsRes.data || []) {
@@ -170,7 +196,7 @@ function renderCalendrierDayDetail(isoDate) {
     li.classList.add('event-detail-item');
 
     const nomEl = document.createElement('strong');
-    nomEl.textContent = item.type === 'event' ? item.nom : `Sélection — ${item.sourceLabel}`;
+    nomEl.textContent = item.type === 'selection' ? `Sélection — ${item.sourceLabel}` : item.nom;
     li.appendChild(nomEl);
 
     const meta = document.createElement('div');
@@ -178,15 +204,23 @@ function renderCalendrierDayDetail(isoDate) {
     if (item.type === 'event') {
       const heures = item.heureDebut && item.heureFin ? `${item.heureDebut.slice(0, 5)} – ${item.heureFin.slice(0, 5)}` : '';
       meta.textContent = [item.sourceLabel, heures, item.lieu].filter(Boolean).join(' · ');
+    } else if (item.type === 'initiative') {
+      meta.textContent = [
+        CLUB_INITIATIVE_DOMAINE_LABELS[item.domaine] || item.domaine,
+        item.sourceLabel,
+        item.porteur ? `Porteur : ${item.porteur}` : null,
+        `Statut : ${item.statut}`,
+      ].filter(Boolean).join(' · ');
     } else {
       meta.textContent = `${item.sourceLabel} · Candidature avant cette date`;
     }
     li.appendChild(meta);
 
-    if (item.commentaire) {
+    const text = item.commentaire || item.description;
+    if (text) {
       const comment = document.createElement('div');
       comment.className = 'communication-body';
-      comment.textContent = item.commentaire;
+      comment.textContent = text;
       li.appendChild(comment);
     }
 
@@ -199,10 +233,13 @@ function renderCalendrierDayDetail(isoDate) {
   detailEl.style.display = '';
 }
 
-// Nature d'un item au sens du filtre de legende : les 4 natures d'evenement, plus 'selection' pour
-// les dates limites de candidature (traitees a part puisqu'elles n'ont pas de "kind" propre).
+// Nature d'un item au sens du filtre de legende : les 4 natures d'evenement, une par domaine de
+// projet ("initiative-sport", etc), et 'selection' pour les dates limites de candidature (qui
+// n'ont pas de "kind"/domaine propre).
 function calendrierItemFilterKey(item) {
-  return item.type === 'event' ? item.kind : 'selection';
+  if (item.type === 'event') return item.kind;
+  if (item.type === 'initiative') return `initiative-${item.domaine}`;
+  return 'selection';
 }
 
 function isCalendrierItemVisible(item) {
@@ -277,7 +314,7 @@ function renderCalendrierGrid() {
       const isoDate = toLocalIsoDate(date);
       const outside = date.getMonth() !== calendrierMonth;
       const items = (calendrierItemsByDate.get(isoDate) || []).filter(isCalendrierItemVisible);
-      const eventKinds = new Set(items.filter((it) => it.type === 'event').map((it) => it.kind));
+      const dotKinds = new Set(items.filter((it) => it.type !== 'selection').map(calendrierItemFilterKey));
       const hasSelection = items.some((it) => it.type === 'selection');
       const clickable = items.length > 0;
 
@@ -289,11 +326,11 @@ function renderCalendrierGrid() {
         + (hasSelection ? ' has-selection' : '');
       cell.textContent = date.getDate();
 
-      if (eventKinds.size) {
+      if (dotKinds.size) {
         const dotsWrap = document.createElement('div');
         dotsWrap.className = 'calendrier-day-dots';
-        for (const kind of EVENT_KIND_ORDER) {
-          if (!eventKinds.has(kind)) continue;
+        for (const kind of CALENDRIER_DOT_ORDER) {
+          if (!dotKinds.has(kind)) continue;
           const dot = document.createElement('span');
           dot.className = `calendrier-dot calendrier-dot-${kind}`;
           dotsWrap.appendChild(dot);

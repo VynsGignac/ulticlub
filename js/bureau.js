@@ -6,7 +6,13 @@
 //   voir supabase/schema.sql -- role_president/role_secretaire/role_tresorier, 3 colonnes
 //   booleennes independantes plutot qu'une seule valeur) ; les autres sont de simples "membres du
 //   bureau" (aucun des 3 a true).
-// - "Réunion bureau" : a venir.
+// - "Réunion bureau" : liste tous les projets (toutes commissions confondues, table club_initiatives
+//   -- voir js/club-initiatives.js) portant une "Demande bureau" non vide, affichee ici en LECTURE
+//   SEULE, avec en face un champ libre "Décision bureau" -- le seul endroit ou ce champ est
+//   editable (ailleurs, ex. le formulaire de projet de Sport/Kid/Vie Associative, il n'est que
+//   consulte). Edition reservee aux membres du bureau, cote interface uniquement (comme les autres
+//   restrictions bureau_uniquement de ce projet) -- la policy RLS de club_initiatives reste large
+//   (tout membre du club peut modifier un projet), a durcir plus tard si besoin.
 //
 // Seul le president peut :
 // - transferer un role legal : cliquer sur un membre du bureau propose, UNIQUEMENT si le viewer
@@ -49,6 +55,7 @@ const BUREAU_ROLE_LEGAL_ORDER = { president: 0, secretaire: 1, tresorier: 2 };
 
 let currentBureauClubId = null;
 let currentBureauViewerIsPresident = false;
+let currentBureauViewerIsBureauMember = false;
 
 function renderBureauTab() {
   selectBureauSubTab('membres-bureau');
@@ -64,7 +71,7 @@ function selectBureauSubTab(subTabId) {
   if (subTabId === 'membres-bureau') {
     renderBureauMembresSubTab();
   } else {
-    document.getElementById('bureau-reunion-content').innerHTML = '<p class="message">Contenu à venir.</p>';
+    renderBureauReunionSubTab();
   }
 }
 
@@ -133,6 +140,7 @@ async function renderBureauMembresSubTab() {
   const members = await fetchBureauMembers();
   const mine = members.find((m) => m.userId === user.id);
   currentBureauViewerIsPresident = !!(mine && mine.rolePresident);
+  currentBureauViewerIsBureauMember = !!mine;
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel panel-wide';
@@ -276,6 +284,102 @@ async function handleAddBureauMember(userId) {
   await client.from('club_members').update({ role_membre_bureau: true }).eq('club_id', currentBureauClubId).eq('user_id', userId);
   closeModal();
   renderBureauMembresSubTab();
+}
+
+// --- Sous-onglet "Réunion bureau" ---------------------------------------------------------------
+
+async function renderBureauReunionSubTab() {
+  const contentEl = document.getElementById('bureau-reunion-content');
+  contentEl.innerHTML = '<p class="message">Chargement...</p>';
+
+  if (!currentBureauClubId) {
+    const user = await requireUser();
+    const { data: profile } = await client.from('profiles').select('active_club_id').eq('id', user.id).single();
+    currentBureauClubId = profile ? profile.active_club_id : null;
+  }
+
+  if (!currentBureauClubId) {
+    contentEl.innerHTML = '<p class="message">Aucun club actif.</p>';
+    return;
+  }
+
+  const { data: initiatives } = await client
+    .from('club_initiatives')
+    .select('id, domaine, nom, echeance, demande_bureau, decision_bureau')
+    .eq('club_id', currentBureauClubId)
+    .order('echeance', { ascending: true });
+
+  // Seuls les projets ayant effectivement une demande a transmettre au bureau apparaissent ici.
+  const withDemande = (initiatives || []).filter((i) => (i.demande_bureau || '').trim());
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel panel-wide';
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'club-results';
+  renderBureauReunionListInto(listEl, withDemande);
+  wrapper.appendChild(listEl);
+
+  contentEl.innerHTML = '';
+  contentEl.appendChild(wrapper);
+}
+
+function renderBureauReunionListInto(listEl, initiatives) {
+  listEl.innerHTML = '';
+
+  if (!initiatives.length) {
+    listEl.innerHTML = '<li class="empty">Aucune demande bureau pour l’instant.</li>';
+    return;
+  }
+
+  for (const initiative of initiatives) {
+    const li = document.createElement('li');
+    li.style.cursor = 'default';
+
+    const nameEl = document.createElement('strong');
+    nameEl.textContent = initiative.nom;
+    li.appendChild(nameEl);
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'communication-meta';
+    metaEl.textContent = CLUB_INITIATIVE_DOMAINE_LABELS[initiative.domaine] || initiative.domaine;
+    li.appendChild(metaEl);
+
+    const demandeEl = document.createElement('div');
+    demandeEl.className = 'communication-body';
+    demandeEl.textContent = `Demande : ${initiative.demande_bureau}`;
+    li.appendChild(demandeEl);
+
+    const decisionLabel = document.createElement('label');
+    decisionLabel.textContent = 'Décision bureau';
+    const decisionArea = document.createElement('textarea');
+    decisionArea.rows = 3;
+    decisionArea.value = initiative.decision_bureau || '';
+    decisionArea.readOnly = !currentBureauViewerIsBureauMember;
+    if (!currentBureauViewerIsBureauMember) decisionArea.placeholder = 'Aucune décision pour le moment.';
+    decisionLabel.appendChild(decisionArea);
+    li.appendChild(decisionLabel);
+
+    if (currentBureauViewerIsBureauMember) {
+      const infoEl = document.createElement('p');
+      infoEl.className = 'message';
+
+      const saveButton = document.createElement('button');
+      saveButton.type = 'button';
+      saveButton.className = 'action-button';
+      saveButton.textContent = 'Enregistrer';
+      saveButton.addEventListener('click', async () => {
+        saveButton.disabled = true;
+        await client.from('club_initiatives').update({ decision_bureau: decisionArea.value.trim() || null }).eq('id', initiative.id);
+        saveButton.disabled = false;
+        setMessage(infoEl, 'Décision enregistrée.');
+      });
+      li.appendChild(saveButton);
+      li.appendChild(infoEl);
+    }
+
+    listEl.appendChild(li);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

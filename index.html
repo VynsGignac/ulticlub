@@ -477,6 +477,9 @@
   .calendrier-dot-responsable { background: #7f1d1d; }
   .calendrier-dot-club { background: #3b82f6; }
   .calendrier-dot-bureau { background: #eab308; }
+  .calendrier-dot-initiative-sport { background: #22c55e; }
+  .calendrier-dot-initiative-kid { background: #a855f7; }
+  .calendrier-dot-initiative-vie_associative { background: #fb923c; }
   .calendrier-day.outside {
     color: #4a5560;
     background: transparent;
@@ -892,7 +895,7 @@
     resize: vertical;
   }
   input:not([type="checkbox"]):focus, select:focus, textarea:focus { outline: 2px solid #3b82f6; }
-  input:not([type="checkbox"]):disabled { opacity: 0.6; }
+  input:not([type="checkbox"]):disabled, textarea:disabled, textarea[readonly] { opacity: 0.6; }
 
   .checkbox-label {
     flex-direction: row;
@@ -1086,6 +1089,9 @@
         <button type="button" class="calendrier-legend-item" data-kind="responsable"><span class="calendrier-dot calendrier-dot-responsable"></span>Responsable</button>
         <button type="button" class="calendrier-legend-item" data-kind="club"><span class="calendrier-dot calendrier-dot-club"></span>Club</button>
         <button type="button" class="calendrier-legend-item" data-kind="bureau"><span class="calendrier-dot calendrier-dot-bureau"></span>Bureau</button>
+        <button type="button" class="calendrier-legend-item" data-kind="initiative-sport"><span class="calendrier-dot calendrier-dot-initiative-sport"></span>Sport</button>
+        <button type="button" class="calendrier-legend-item" data-kind="initiative-kid"><span class="calendrier-dot calendrier-dot-initiative-kid"></span>Kid</button>
+        <button type="button" class="calendrier-legend-item" data-kind="initiative-vie_associative"><span class="calendrier-dot calendrier-dot-initiative-vie_associative"></span>Vie Associative</button>
         <button type="button" class="calendrier-legend-item" data-kind="selection"><span class="calendrier-legend-swatch"></span>Sélection</button>
       </div>
       <div id="calendrier-grid" class="calendrier-grid"></div>

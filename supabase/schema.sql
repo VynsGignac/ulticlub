@@ -1133,6 +1133,18 @@ create policy "Les membres du club creent un projet dans leur club"
     )
   );
 
+-- "Demande bureau" (champ libre, voir js/club-initiatives.js) : rempli par n'importe quel membre
+-- comme les autres champs du projet, une demande a transmettre au bureau. "Décision bureau"
+-- (champ libre egalement) : reponse du bureau, affichee en LECTURE SEULE partout sauf dans le
+-- sous-onglet Bureau > Réunion bureau (voir js/bureau.js) ou elle est editable -- reserve au
+-- bureau cote interface uniquement (comme bureau_uniquement/responsable_uniquement ailleurs dans
+-- ce fichier : la policy UPDATE ci-dessous reste large, tout membre du club peut techniquement
+-- modifier n'importe quel champ du projet y compris decision_bureau -- a durcir plus tard si
+-- besoin). Les projets apparaissent aussi dans l'onglet Calendrier a la date de leur echeance
+-- (voir js/calendar.js) -- sans impact sur ce schema, aucune colonne supplementaire requise.
+alter table public.club_initiatives add column if not exists demande_bureau text;
+alter table public.club_initiatives add column if not exists decision_bureau text;
+
 drop policy if exists "Les membres du club modifient les projets de leur club" on public.club_initiatives;
 create policy "Les membres du club modifient les projets de leur club"
   on public.club_initiatives for update
