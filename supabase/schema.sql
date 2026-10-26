@@ -1078,3 +1078,64 @@ create policy "Les membres du club modifient les projets de leur club"
     select 1 from public.club_members cm
     where cm.club_id = club_initiatives.club_id and cm.user_id = auth.uid()
   ));
+
+-- --- Membres de commission (colonne de gauche des onglets Sport / Kid / Vie Associative) ---------
+-- Qui fait partie de la "commission" de ce domaine, et qui en est responsable (mis en evidence en
+-- haut de la liste, voir js/club-initiatives.js). Les membres sont choisis dans le roster
+-- club_licencies (onglet Administratif), PAS dans les comptes de l'app. nom/prenom sont dupliques
+-- ici au moment de l'ajout (plutot qu'un JOIN vers club_licencies a la lecture) car club_licencies
+-- est reservee au bureau (donnees sensibles) alors que cette liste doit etre visible par tout le
+-- monde sur ces onglets -- un JOIN la bloquerait pour les non-bureau. Ajouter/retirer un membre ou
+-- le nommer responsable necessite donc deja de pouvoir lire club_licencies pour choisir qui ajouter
+-- : ces 3 actions sont de fait reservees au bureau, meme si le reste de l'onglet (projets) reste
+-- ouvert a tous.
+
+create table if not exists public.club_commission_members (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  domaine text not null,
+  licencie_id uuid not null references public.club_licencies (id) on delete cascade,
+  nom text not null,
+  prenom text,
+  responsable boolean not null default false,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  unique (domaine, licencie_id)
+);
+
+alter table public.club_commission_members drop constraint if exists club_commission_members_domaine_check;
+alter table public.club_commission_members add constraint club_commission_members_domaine_check
+  check (domaine in ('sport', 'kid', 'vie_associative'));
+
+alter table public.club_commission_members enable row level security;
+
+drop policy if exists "Les membres du club lisent les membres de commission" on public.club_commission_members;
+create policy "Les membres du club lisent les membres de commission"
+  on public.club_commission_members for select
+  to authenticated
+  using (exists (
+    select 1 from public.club_members cm
+    where cm.club_id = club_commission_members.club_id and cm.user_id = auth.uid()
+  ));
+
+drop policy if exists "Le bureau ajoute un membre de commission" on public.club_commission_members;
+create policy "Le bureau ajoute un membre de commission"
+  on public.club_commission_members for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.is_club_bureau(club_id)
+  );
+
+drop policy if exists "Le bureau modifie un membre de commission" on public.club_commission_members;
+create policy "Le bureau modifie un membre de commission"
+  on public.club_commission_members for update
+  to authenticated
+  using (public.is_club_bureau(club_id))
+  with check (public.is_club_bureau(club_id));
+
+drop policy if exists "Le bureau retire un membre de commission" on public.club_commission_members;
+create policy "Le bureau retire un membre de commission"
+  on public.club_commission_members for delete
+  to authenticated
+  using (public.is_club_bureau(club_id));

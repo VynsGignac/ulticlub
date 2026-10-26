@@ -676,6 +676,43 @@
   .panel-wide {
     max-width: 100%;
   }
+
+  /* Mise en page "commission" des onglets Sport / Kid / Vie Associative (voir
+     js/club-initiatives.js) : membres a gauche, projets (large) au centre, creation a droite.
+     Empile en 1 colonne sous 900px (telephone/APK/tablette) -- 3 colonnes cote a cote seulement a
+     partir d'un ecran assez large pour que ca ait du sens. */
+  .commission-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    width: 100%;
+  }
+  @media (min-width: 900px) {
+    .commission-layout {
+      grid-template-columns: minmax(200px, 260px) 1fr minmax(280px, 360px);
+      align-items: start;
+    }
+  }
+  .commission-column {
+    min-width: 0;
+    box-sizing: border-box;
+    background: #1a2028;
+    border: 1px solid #2a333c;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .commission-column h3 {
+    margin: 0;
+    font-size: 1em;
+    text-align: left;
+  }
+  .commission-inline-form {
+    max-width: 100%;
+    width: 100%;
+  }
   #app-modal-body.no-scroll {
     overflow-y: hidden;
   }
